@@ -13,7 +13,7 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\TaskVitals.exe
 ```
 
-Use `-A Win32` in a separate build directory for x86. The workflow builds both architectures after the repository is pushed. The current local release candidate was verified with MinGW; the MSVC workflow has not yet executed for this repository.
+Use `-A Win32` in a separate build directory for x86. The workflow builds and self-tests both architectures. [The initial Windows CI run](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) built, self-tested and packaged MSVC x86/x64 successfully. The downloadable x86 release and interactive GUI checks use the locally verified MinGW build.
 
 Direct build from an x64 Native Tools Command Prompt:
 
@@ -37,7 +37,7 @@ Or create the `release` directory and use the compiler directly:
 g++ -std=gnu++11 -O2 -Wall -Wextra -finput-charset=UTF-8 -mwindows -static -static-libgcc -static-libstdc++ -s src/main.cpp -o release/TaskVitals.exe -luser32 -lgdi32 -ladvapi32 -lcomctl32 -limm32 -loleacc -lole32 -loleaut32 -luuid
 ```
 
-The executable architecture follows the compiler. The supplied x86 release was built with MinGW.org GCC 6.3.0 and imports only Windows system DLLs. Current MinGW-w64 should support the same source, but was not used for the supplied candidate.
+The executable architecture follows the compiler. The supplied x86 release was built with MinGW.org GCC 6.3.0 and imports only Windows system DLLs. Current MinGW-w64 should support the same source, but was not used for the supplied release.
 
 ## Package a portable release
 

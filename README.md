@@ -8,7 +8,7 @@ Keep an eye on system usage with a small transparent strip, hover details, and a
 
 ## Download
 
-**[Download the latest release](https://github.com/razbenaharon/TaskVitals/releases/latest)**
+**[Download for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.7.0/TaskVitals-1.7.0-windows-x86.zip)** · [Release notes and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
 
 Choose `TaskVitals-1.7.0-windows-x86.zip`, extract it to a permanent folder, and run `TaskVitals.exe`. The portable x86 build is tested on x64 Windows 11 and needs no separate runtime installation. Startup with Windows is optional and off by default.
 
@@ -99,7 +99,7 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The supplied download was built and tested locally with MinGW. The included workflow is configured to build and self-test MSVC x86 and x64 when the repository is pushed; those builds have not yet run for this release candidate.
+The supplied download was built and tested locally with MinGW. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) also built, self-tested and packaged MSVC x86 and x64 successfully. Interactive desktop checks and resource measurements apply to the supplied MinGW x86 build; CI does not validate the taskbar UI on every Windows configuration.
 
 [Build instructions](docs/BUILDING.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 

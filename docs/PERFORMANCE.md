@@ -67,6 +67,6 @@ No working-set trimming, forced paging, global Windows setting changes or additi
 
 ## Validation status
 
-The local candidate passed sampling self-tests and interactive checks for single instance, topmost style, views, refresh choices, startup, exit, all sizes, font resource reuse, saved size/position, native hover and actual Ctrl+drag. Startup preferences were restored after testing. The publication candidate is checked again before packaging.
+The local release passed sampling self-tests and interactive checks for single instance, topmost style, views, refresh choices, startup, exit, all sizes, font resource reuse, saved size/position, native hover and actual Ctrl+drag. Startup preferences were restored after testing. The packaged executable also passes its self-test.
 
-MSVC CI is configured but has not yet run for the unpublished repository. Mixed-DPI hardware, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
+[MSVC x86/x64 CI](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) passed build, self-test and packaging. Interactive GUI and resource observations apply to the MinGW x86 download. Mixed-DPI hardware, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.

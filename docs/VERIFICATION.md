@@ -1,6 +1,6 @@
-# Publication candidate verification
+# Release verification
 
-Version 1.7.0, prepared on 2026-10-16. This remains a local release candidate; no GitHub repository or release has been published.
+Version 1.7.0, prepared on 2026-10-16 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.7.0).
 
 Version 1.7.0 was rebuilt with optional GPU monitoring, then checked with the GUI smoke suite, GPU toggle/restart tests, live placement tests and built-in aggregation tests. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
 
@@ -37,4 +37,4 @@ The current [smoke report](measurements/publication-smoke.json) recorded 12.46 M
 
 The longer resource reference in [PERFORMANCE.md](PERFORMANCE.md) describes 1.4.1 before the color option. The current short observation is linked there separately; no controlled long-duration comparison has been made for 1.7.0. Colors are cached RGB values; the custom picker is event-driven and its library is released after the dialog closes.
 
-The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. The configured MSVC x86/x64 workflow has not yet run for this unpublished repository. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
+The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) successfully built, self-tested and packaged MSVC x86 and x64. GUI and performance checks apply to the supplied MinGW x86 portable binary. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
