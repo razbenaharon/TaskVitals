@@ -1,8 +1,10 @@
 # TaskVitals
 
-**A lightweight, native Windows CPU and RAM monitor, with optional GPU, for your taskbar.**
+**A portable Windows 11 taskbar CPU and RAM monitor with optional GPU usage.**
 
-Keep an eye on system usage with a small transparent strip, hover details, and a configurable refresh interval. Written in C++ with Win32. English-only interface. MIT licensed.
+See CPU and memory usage at a glance in a small transparent taskbar strip. TaskVitals is a native C++/Win32 system monitor: no installation, no Electron and no .NET runtime. GPU monitoring is optional and off by default. English-only interface, open source under the MIT license.
+
+Built for people who want a few readable numbers on the taskbar, with hover details and simple controls for size, color, position and refresh speed.
 
 ![TaskVitals on the Windows taskbar](docs/images/taskbar.png)
 
@@ -10,9 +12,11 @@ Keep an eye on system usage with a small transparent strip, hover details, and a
 
 **[Download for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.7.0/TaskVitals-1.7.0-windows-x86.zip)** · [Release notes and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
 
-Choose `TaskVitals-1.7.0-windows-x86.zip`, extract it to a permanent folder, and run `TaskVitals.exe`. The portable x86 build is tested on x64 Windows 11 and needs no separate runtime installation. Startup with Windows is optional and off by default.
+1. Download `TaskVitals-1.7.0-windows-x86.zip` and choose **Extract all**.
+2. Keep the extracted folder somewhere permanent, then double-click `TaskVitals.exe`.
+3. Look for **CPU / RAM** on your taskbar. Right-click the visible text for options, including **Show GPU (optional)** and **Exit**.
 
-Open the ZIP and choose **Extract all**, then double-click `TaskVitals.exe` in the extracted folder. The ZIP contains `TaskVitals.exe`, `README.txt`, `LICENSE` and `CHANGELOG.md`. No installer, account or administrator permission is required. CPU and RAM appear immediately; CPU needs the next sample for its first percentage, and GPU is initially hidden.
+The portable x86 build is tested on x64 Windows 11. No account, installer or administrator permission is required. The ZIP contains `TaskVitals.exe`, `README.txt`, `LICENSE` and `CHANGELOG.md`. The first CPU percentage arrives with the next sample, normally after 5 seconds. GPU and startup with Windows are off by default.
 
 The executable is unsigned. Windows may prompt when running a downloaded copy. Source and build instructions are included for anyone who prefers to build it.
 
@@ -81,13 +85,51 @@ These are observations from one Windows 11 machine, not fixed requirements or pe
 
 CPU is the average busy time between samples. A longer interval smooths short spikes. RAM is total physical-memory usage. The first CPU reading is `--` until a second valid sample arrives. Hover details are a snapshot; move away and hover again to update them.
 
-## What to expect
+## FAQ
 
-- The taskbar view is a topmost window positioned **over** the primary horizontal taskbar. It does not reserve space or inject code into Explorer. The strip selects a free gap between actual shell controls. If no gap fits or the controls cannot be read, it moves just above the taskbar.
-- The widget uses system DPI scaling. Mixed-DPI setups and secondary or vertical taskbars have not been validated.
-- Task Manager can show a different CPU percentage because its calculation and averaging can differ.
-- Exclusive full-screen applications and the Windows secure desktop may cover the widget.
-- Startup registration can also be disabled independently in Windows Settings.
+### Does TaskVitals work on Windows 11?
+
+The supplied portable x86 executable has been tested on x64 Windows 11. The taskbar view targets the primary horizontal taskbar. Mixed-DPI setups and secondary or vertical taskbars have not been validated. Exclusive full-screen apps and the Windows secure desktop may cover the widget.
+
+### Is it a real taskbar extension? Will it cover my app icons?
+
+It is a topmost window positioned **over** the taskbar, not a shell extension. It does not inject code into Explorer or reserve shell space. It reads shell-control bounds and selects a free gap; if no gap fits or those bounds cannot be read, it moves just above the taskbar. Placement has been checked on the test machine, including the wider GPU view, rather than every Windows configuration.
+
+### Does it need Electron, Python, .NET or administrator access?
+
+No. The app is compiled native C++ using Windows system libraries. PowerShell and CMake are development tools, not background runtime requirements. Extract the Windows ZIP and run the executable as your normal user.
+
+### How much RAM and CPU does it use?
+
+Short observations on one Windows 11 machine recorded about 12.2 MiB working set with GPU off and 16.3 MiB with GPU on. These are measurements, not minimum requirements or fixed limits. See [Small by design](#small-by-design) and the [raw reports](docs/PERFORMANCE.md) for CPU results, private memory and limitations.
+
+### How do I enable GPU monitoring? Does it run while disabled?
+
+Right-click the visible text and check **Show GPU (optional)**. It is off by default. No GPU counters are sampled while disabled, and a fresh GPU-off process does not load PDH for GPU monitoring. Disabling GPU closes its query and releases its buffer and library reference; Windows may retain other caches. Details are in [Optional GPU](#optional-gpu).
+
+### Why does CPU or GPU show `--`, or differ from Task Manager?
+
+CPU needs two valid samples; GPU needs available Windows performance counters and an initial sampling interval. Unsupported drivers or invalid samples also show `--`. CPU is averaged between samples, and GPU shows the busiest physical engine across all GPUs. Different averaging and aggregation can produce different results from Task Manager.
+
+### Can I change the text, colors, position and refresh interval?
+
+Yes. Right-click the visible letters or numbers for three text sizes, color presets/custom colors, placement options, and 1/2/5/10-second refresh intervals. The default is 5 seconds. Hold Ctrl and drag the text for a preferred custom position; collision avoidance still applies.
+
+### Does TaskVitals send telemetry or require an account?
+
+The app has no telemetry, account system or automatic update checker. There is no app-level network request code. Downloads and source are hosted on GitHub; updating means downloading a newer release.
+
+### Can it start automatically with Windows? How do I quit?
+
+Check **Start with Windows** in the right-click menu; it is off by default and applies only to your user account. Windows Settings can disable that startup entry independently. Use **Exit** in the same menu to quit. There is no tray icon or taskbar button, so aim at the visible widget text to open its menu.
+
+### Why might Windows warn about the download?
+
+The executable is unsigned. Windows may show a warning for a downloaded copy. The release includes SHA-256 checksums, and the source and [build instructions](docs/BUILDING.md) are available for inspection or building your own copy.
+
+### How is it different from TrafficMonitor or a full hardware monitor?
+
+TaskVitals focuses on a small CPU/RAM percentage display, optional GPU usage and a portable native executable. It does not currently include history graphs, network speed, disk activity, temperatures or VRAM monitoring. Choose it when that focused feature set fits what you need; no claim is made that it uses fewer resources than other tools.
 
 ## Build and test
 
