@@ -1,0 +1,20 @@
+{
+  "selfTest": "passed",
+  "singleInstance": "passed",
+  "alwaysOnTop": "passed",
+  "startupToggle": "passed",
+  "compactToggle": "passed",
+  "refreshChoices": "passed",
+  "textSizes": "passed",
+  "repeatedFontReplacement": "passed",
+  "positioning": "passed",
+  "sizeAndPositionPersistence": "passed",
+  "colorPresetsAndPersistence": "passed",
+  "workingSetMiB": 12.46,
+  "privateMemoryMiB": 2.77,
+  "cpuMillisecondsOver12Seconds": 15.62,
+  "gdiBefore": 14,
+  "gdiAfter": 14,
+  "userBefore": 7,
+  "userAfter": 7
+}

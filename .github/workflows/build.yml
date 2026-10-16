@@ -1,0 +1,40 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Win32
+            arch: x86
+          - platform: x64
+            arch: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure
+        run: cmake -S . -B build -A ${{ matrix.platform }}
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Sampling self-test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package portable build
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -Executable ./build/Release/TaskVitals.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: TaskVitals-windows-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

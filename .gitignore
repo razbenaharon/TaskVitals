@@ -1,0 +1,12 @@
+/build/
+/release/
+/dist/
+/.vs/
+*.obj
+*.pdb
+*.ilk
+*.user
+*.exe
+*.zip
+*.log
+/measurement.json

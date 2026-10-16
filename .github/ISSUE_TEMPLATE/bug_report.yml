@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible TaskVitals problem.
+title: "[Bug]: "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: TaskVitals version and build
+      placeholder: "1.5.0, downloaded x86 ZIP"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Windows and display setup
+      description: Include Windows version, display scaling, monitor count and taskbar layout.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the selected view, text size, position and refresh interval.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshot or additional details
+      description: A cropped screenshot of the widget can help explain layout issues.
