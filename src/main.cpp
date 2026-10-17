@@ -663,7 +663,7 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     s.refreshMs=pref(L"RefreshMs",5000);
     if(!validRefresh(s.refreshMs)) s.refreshMs=5000;
     WNDCLASSW wc={}; wc.lpfnWndProc=windowProc; wc.hInstance=instance; wc.lpszClassName=kClass;
-    wc.hCursor=LoadCursorW(0,IDC_ARROW); wc.hIcon=LoadIconW(0,IDI_APPLICATION);
+    wc.hCursor=LoadCursorW(0,IDC_ARROW); wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(1));
     if(!RegisterClassW(&wc)) { CloseHandle(mutex); return 1; }
     RECT work; SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
     s.x=int(pref(L"X",DWORD(work.right-px(340)))); s.y=int(pref(L"Y",DWORD(work.top+px(24))));
