@@ -89,11 +89,11 @@ CPU is the average busy time between samples. A longer interval smooths short sp
 
 ### Does TaskVitals work on Windows 11?
 
-The supplied portable x86 executable has been tested on x64 Windows 11. The taskbar view targets the primary horizontal taskbar. Mixed-DPI setups and secondary or vertical taskbars have not been validated. Exclusive full-screen apps and the Windows secure desktop may cover the widget.
+The supplied portable x86 executable has been tested on x64 Windows 11. The taskbar view targets the primary horizontal taskbar. Mixed-DPI setups and secondary or vertical taskbars have not been validated. The widget hides while a full-screen app, such as a full-screen video, is in front on its monitor, and returns when the taskbar does. The Windows secure desktop may still cover it.
 
 ### Is it a real taskbar extension? Will it cover my app icons?
 
-It is a topmost window positioned **over** the taskbar, not a shell extension. It does not inject code into Explorer or reserve shell space. It reads shell-control bounds and selects a free gap; if no gap fits or those bounds cannot be read, it moves just above the taskbar. Placement has been checked on the test machine, including the wider GPU view, rather than every Windows configuration.
+It is a topmost window positioned **over** the taskbar, not a shell extension. It does not inject code into Explorer or reserve shell space; it registers only for the shell's full-screen notifications. It reads shell-control bounds and selects a free gap; if no gap fits or those bounds cannot be read, it moves just above the taskbar. Placement has been checked on the test machine, including the wider GPU view, rather than every Windows configuration.
 
 ### Does it need Electron, Python, .NET or administrator access?
 

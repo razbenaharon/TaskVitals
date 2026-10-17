@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added an application icon.
+- Hid the widget while a full-screen app is in front on its monitor, following the shell's own full-screen notification; it returns with the taskbar.
+
 ## 1.7.0 — 2026-10-16
 
 - Added optional GPU utilization, disabled by default and enabled through Show GPU (optional).

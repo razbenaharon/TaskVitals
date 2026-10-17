@@ -20,7 +20,7 @@ Direct build from an x64 Native Tools Command Prompt:
 ```bat
 mkdir release
 rc /nologo /fo release\TaskVitals.res src\TaskVitals.rc
-cl /nologo /O2 /W4 /MT /EHsc /utf-8 src\main.cpp release\TaskVitals.res /Fo:release\main.obj /Fe:release\TaskVitals.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib advapi32.lib comctl32.lib imm32.lib oleacc.lib ole32.lib oleaut32.lib uuid.lib
+cl /nologo /O2 /W4 /MT /EHsc /utf-8 src\main.cpp release\TaskVitals.res /Fo:release\main.obj /Fe:release\TaskVitals.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib advapi32.lib comctl32.lib imm32.lib oleacc.lib ole32.lib oleaut32.lib shell32.lib uuid.lib
 ```
 
 ## MinGW / MinGW-w64
@@ -36,7 +36,7 @@ Or create the `release` and `build` directories and use the tools directly:
 
 ```powershell
 windres -I src src/TaskVitals.rc -O coff -o build/TaskVitals.res.o
-g++ -std=gnu++11 -O2 -Wall -Wextra -finput-charset=UTF-8 -mwindows -static -static-libgcc -static-libstdc++ -s src/main.cpp build/TaskVitals.res.o -o release/TaskVitals.exe -luser32 -lgdi32 -ladvapi32 -lcomctl32 -limm32 -loleacc -lole32 -loleaut32 -luuid
+g++ -std=gnu++11 -O2 -Wall -Wextra -finput-charset=UTF-8 -mwindows -static -static-libgcc -static-libstdc++ -s src/main.cpp build/TaskVitals.res.o -o release/TaskVitals.exe -luser32 -lgdi32 -ladvapi32 -lcomctl32 -limm32 -loleacc -lole32 -loleaut32 -lshell32 -luuid
 ```
 
 The executable architecture follows the compiler. The supplied x86 release was built with MinGW.org GCC 6.3.0 and imports only Windows system DLLs. Current MinGW-w64 should support the same source, but was not used for the supplied release.

@@ -12,6 +12,7 @@
 #include <commdlg.h>
 #include <ole2.h>
 #include <oleacc.h>
+#include <shellapi.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -24,6 +25,7 @@ const wchar_t* kClass = L"TaskVitals.Window.1";
 const wchar_t* kPrefs = L"Software\\TaskVitals";
 const wchar_t* kRun = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const COLORREF kBackground=RGB(22,25,31);
+const UINT kAppBarMessage=WM_APP+1;
 struct Palette { COLORREF cpu,ram,value; };
 const Palette kPalettes[]={
     {RGB(91,206,182),RGB(190,176,255),RGB(244,246,250)},
@@ -41,6 +43,7 @@ struct CpuTimes { uint64_t idle, kernel, user; };
 struct State {
     HWND window, tooltip; HFONT regular, number, labelFont; int dpi;
     bool ready, haveCpu, haveMemory, compact, dragging, gpuEnabled, haveGpu;
+    bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook;
     double gpuUsage;
     CpuTimes previous; double cpu; MEMORYSTATUSEX memory;
     int x, y;
@@ -360,6 +363,24 @@ void positionTaskbar() {
     if(current.left!=x || current.top!=y || current.right-current.left!=width || current.bottom-current.top!=height)
         SetWindowPos(s.window,HWND_TOPMOST,x,y,width,height,SWP_NOACTIVATE);
 }
+// Follow the shell's own full-screen decision, as the taskbar does. The shell
+// reports it per session, so only hide for a window on this widget's monitor.
+void updateFullscreen() {
+    HWND front=GetForegroundWindow();
+    bool hide=s.shellFullscreen && front && front!=s.window &&
+        MonitorFromWindow(front,MONITOR_DEFAULTTONULL)==MonitorFromWindow(s.window,MONITOR_DEFAULTTONEAREST);
+    if(hide==s.hidden) return;
+    s.hidden=hide;
+    if(hide) {
+        if(s.tooltip) SendMessageW(s.tooltip,TTM_POP,0,0);
+        ShowWindow(s.window,SW_HIDE);
+    } else {
+        positionTaskbar();
+        SetWindowPos(s.window,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
+}
+// Focus moving to another monitor need not change the shell's state.
+void CALLBACK foregroundChanged(HWINEVENTHOOK,DWORD,HWND,LONG,LONG,DWORD,DWORD) { updateFullscreen(); }
 void rememberTaskbarOffset(int delta=0) {
     RECT bar,r; HWND taskbar=FindWindowW(L"Shell_TrayWnd",0);
     if(taskbar && GetWindowRect(taskbar,&bar) && GetWindowRect(s.window,&r)) {
@@ -391,7 +412,7 @@ void setMode(bool compact) {
         SetWindowPos(s.window,HWND_TOPMOST,s.x,s.y,px(desktopWidth()),px(145),SWP_NOACTIVATE|SWP_FRAMECHANGED);
         SendMessageW(s.window,WM_DISPLAYCHANGE,0,0);
     }
-    ShowWindow(s.window,SW_SHOWNOACTIVATE);
+    if(!s.hidden) ShowWindow(s.window,SW_SHOWNOACTIVATE);
     InvalidateRect(s.window,0,FALSE);
     save();
 }
@@ -508,7 +529,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         break;
     }
     case WM_TIMER:
-        if(wp==1) { sample(); positionTaskbar(); }
+        if(wp==1) { sample(); positionTaskbar(); updateFullscreen(); }
         else if(wp==2) { KillTimer(w,2); layout.pending=false; positionTaskbar(); }
         return 0;
     case WM_LBUTTONDOWN:
@@ -578,8 +599,16 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
             SetWindowPos(w,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
         } return 0;
     }
+    case kAppBarMessage:
+        if(wp==ABN_FULLSCREENAPP) { s.shellFullscreen=lp!=0; updateFullscreen(); }
+        return 0;
     case WM_CLOSE: DestroyWindow(w); return 0;
     case WM_DESTROY:
+        if(s.appBar) {
+            APPBARDATA bar={}; bar.cbSize=sizeof(bar); bar.hWnd=w;
+            SHAppBarMessage(ABM_REMOVE,&bar); s.appBar=false;
+        }
+        if(s.foregroundHook) { UnhookWinEvent(s.foregroundHook); s.foregroundHook=0; }
         gpu.stop();
         KillTimer(w,1); KillTimer(w,2);
         if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
@@ -670,11 +699,27 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     s.window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,kClass,L"TaskVitals",WS_POPUP,s.x,s.y,px(320),px(145),0,0,instance,0);
     if(!s.window) { CloseHandle(mutex); return 1; }
     createTooltip();
+    // Register for full-screen notifications only. Without ABM_SETPOS the
+    // widget reserves no screen space.
+    APPBARDATA bar={}; bar.cbSize=sizeof(bar); bar.hWnd=s.window; bar.uCallbackMessage=kAppBarMessage;
+    s.appBar=SHAppBarMessage(ABM_NEW,&bar)!=0;
+    // The shell only notifies on changes; ask once in case a full-screen app is
+    // already running. Older SDK headers lack this export, so resolve it.
+    typedef HRESULT (WINAPI *NotificationState)(int*);
+    NotificationState notificationState=reinterpret_cast<NotificationState>(
+        GetProcAddress(GetModuleHandleW(L"shell32.dll"),"SHQueryUserNotificationState"));
+    int shellState=0; // 2: busy/full-screen, 3: Direct3D full-screen
+    if(s.appBar && notificationState && SUCCEEDED(notificationState(&shellState)))
+        s.shellFullscreen=shellState==2 || shellState==3;
+    updateFullscreen();
+    if(s.appBar) s.foregroundHook=SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,0,
+        foregroundChanged,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
     setMode(pref(L"Taskbar",1)!=0);
     sample();
     if(s.gpuEnabled) gpu.start();
     if(!setRefresh(s.refreshMs)) { DestroyWindow(s.window); CloseHandle(mutex); return 1; }
-    ShowWindow(s.window,SW_SHOWNOACTIVATE); UpdateWindow(s.window);
+    if(!s.hidden) ShowWindow(s.window,SW_SHOWNOACTIVATE);
+    UpdateWindow(s.window);
     MSG msg; int result;
     while((result=GetMessageW(&msg,0,0,0))>0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     DeleteObject(s.regular); DeleteObject(s.number); DeleteObject(s.labelFont); CloseHandle(mutex);
