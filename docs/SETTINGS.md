@@ -26,4 +26,6 @@ To remove the app, uncheck Start with Windows, exit, and delete its folder. Opti
 
 Taskbar placement is constrained to free gaps between accessible shell controls. If the taskbar is full or its controls cannot be read, the strip floats just above it. A saved custom offset is a preferred location; it never overrides collision avoidance. Layout changes are coalesced through a one-shot 200 ms event timer, separate from CPU/RAM sampling.
 
+`LimitEnabled` and `TemperatureEnabled` are DWORDs: 0 (default) hides the CPU speed-limit or CPU-temperature column; 1 shows it. Both use the CPU accent. Disabling the speed limit releases its PDH query. The temperature column reads Core Temp's shared memory only while enabled and shows `--` when Core Temp is not running.
+
 `GpuEnabled` is a DWORD: 0 (default) disables GPU monitoring; 1 enables it. The optional GPU column uses the RAM accent and the shared percentage-text color. Disabling it releases the PDH query and reusable buffer. Unsupported counters show `--`; toggle off/on to retry initialization.

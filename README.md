@@ -24,6 +24,7 @@ The executable is unsigned. Windows may prompt when running a downloaded copy. S
 
 - Transparent CPU and RAM percentages over the taskbar, plus an optional desktop card view.
 - Optional GPU utilization, **off by default**, with no GPU sampling or PDH startup load while disabled.
+- Optional CPU speed limit and CPU temperature (read from Core Temp), both **off by default**. No driver or administrator access in TaskVitals itself.
 - Hover details: used, total and available RAM, uptime, and the last sample time.
 - Small, Normal and Large text, with a layout that scales to fit.
 - Five color presets and custom CPU/RAM accent and percentage-text colors.
@@ -42,6 +43,8 @@ The executable is unsigned. Windows may prompt when running a downloaded copy. S
 | Open options | Right-click the visible text |
 | See more detail | Hover over the visible text |
 | Show GPU usage | Check **Show GPU (optional)**; off by default |
+| Show CPU speed limit | Check **Show CPU speed limit (optional)**; off by default |
+| Show CPU temperature | Check **Show CPU temperature (needs Core Temp)**; off by default |
 | Change text size | **Text size** in the menu |
 | Change colors | **Colors** in the menu |
 | Change placement | **Taskbar position** in the menu |
@@ -69,6 +72,14 @@ GPU is sampled at the existing 1/2/5/10-second refresh interval. The native Wind
 The percentage is the **busiest physical engine across all GPUs**: per-process readings are added only within the same adapter/physical engine, then the largest engine total is shown. This includes 3D, compute, copy and video engines exposed by Windows. It is not a sum of all GPUs, a temperature reading, VRAM usage or a promise of an exact Task Manager match. Unsupported drivers, invalid samples and startup warm-up show `--`. A longer interval smooths spikes.
 
 ![Optional GPU in the desktop view](docs/images/gpu.png)
+
+## Optional CPU speed limit and temperature
+
+Windows does not give ordinary programs the CPU temperature. Reading the CPU's own sensor needs a kernel driver and administrator rights, which TaskVitals does not install. Two optional columns cover this instead; each is off by default, saved, and adds one column to both views.
+
+**Show CPU speed limit (optional)** shows `LIM`: the share of maximum performance Windows currently allows the processor (the `% Performance Limit` counter). 100% means no limit. A lower value means the CPU is being held back, by heat or by power policy such as battery saving; the counter does not say which. It is not a temperature. It uses the same on-demand PDH loading as GPU, sampled at the refresh interval, and releases the query and library reference when disabled.
+
+**Show CPU temperature (needs Core Temp)** shows `TEMP`: the hottest core in °C, read from the shared memory that the separate, free [Core Temp](https://www.alcpu.com/CoreTemp/) utility publishes while it runs. Core Temp loads its own driver and asks for administrator approval; TaskVitals only reads the published block, opening and closing it on each sample, so a closed Core Temp shows `--` instead of a stale value. Fahrenheit and distance-to-TjMax modes are converted, and readings outside 0–150 °C are ignored. The reader was checked against a simulated block in Core Temp's documented layout; Core Temp itself was not running on the test machine.
 
 ## Small by design
 
@@ -129,7 +140,7 @@ The executable is unsigned. Windows may show a warning for a downloaded copy. Th
 
 ### How is it different from TrafficMonitor or a full hardware monitor?
 
-TaskVitals focuses on a small CPU/RAM percentage display, optional GPU usage and a portable native executable. It does not currently include history graphs, network speed, disk activity, temperatures or VRAM monitoring. Choose it when that focused feature set fits what you need; no claim is made that it uses fewer resources than other tools.
+TaskVitals focuses on a small CPU/RAM percentage display, optional GPU usage and a portable native executable. It does not currently include history graphs, network speed, disk activity or VRAM monitoring, and it reads CPU temperature only from Core Temp. Choose it when that focused feature set fits what you need; no claim is made that it uses fewer resources than other tools.
 
 ## Build and test
 

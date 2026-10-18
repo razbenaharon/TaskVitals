@@ -43,8 +43,11 @@ try {
     $handle = [MeterTest]::FindWindow('TaskVitals.Window.1','TaskVitals')
     Assert ($handle -ne [IntPtr]::Zero) 'Widget did not open'
     Assert (([MeterTest]::GetWindowLong($handle,-20) -band 8) -eq 8) 'Window is not topmost'
-    if ((Get-ItemPropertyValue $prefs GpuEnabled) -eq 1) {
-        [void][MeterTest]::SendMessage($handle,0x111,[IntPtr]601,[IntPtr]::Zero)
+    # Optional columns widen the strip; turn them off for the compact-size check.
+    foreach ($option in @(@('GpuEnabled',601),@('LimitEnabled',602),@('TemperatureEnabled',603))) {
+        if ((Get-ItemPropertyValue $prefs $option[0]) -eq 1) {
+            [void][MeterTest]::SendMessage($handle,0x111,[IntPtr]$option[1],[IntPtr]::Zero)
+        }
     }
     # Force compact mode for this check regardless of the user's saved mode.
     if ((Get-ItemPropertyValue $prefs Taskbar) -ne 1) {
@@ -160,7 +163,7 @@ try {
     else { New-ItemProperty $run TaskVitals -Value $oldRun -PropertyType String -Force | Out-Null }
     if (-not $hadPrefs) { Remove-Item $prefs -ErrorAction SilentlyContinue }
     else {
-        foreach ($name in @('X','Y','Taskbar','RefreshMs','TextScale','Anchor','TaskbarOffset','CpuColor','RamColor','ValueColor','GpuEnabled')) {
+        foreach ($name in @('X','Y','Taskbar','RefreshMs','TextScale','Anchor','TaskbarOffset','CpuColor','RamColor','ValueColor','GpuEnabled','LimitEnabled','TemperatureEnabled')) {
             if ($null -ne $prefSnapshot.$name) { New-ItemProperty $prefs $name -Value $prefSnapshot.$name -PropertyType DWord -Force | Out-Null }
             else { Remove-ItemProperty $prefs $name -ErrorAction SilentlyContinue }
         }

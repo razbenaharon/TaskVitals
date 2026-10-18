@@ -17,7 +17,7 @@ $prefs='HKCU:\Software\TaskVitals'
 Assert ([GpuTest]::FindWindow('TaskVitals.Window.1','TaskVitals') -eq [IntPtr]::Zero) 'Close TaskVitals before this test.'
 $before=Get-ItemProperty $prefs -ErrorAction SilentlyContinue
 New-Item -Path $prefs -Force | Out-Null
-$names=@('GpuEnabled','Taskbar','TextScale','X','Y','Anchor','TaskbarOffset','RefreshMs','CpuColor','RamColor','ValueColor')
+$names=@('GpuEnabled','LimitEnabled','Taskbar','TextScale','X','Y','Anchor','TaskbarOffset','RefreshMs','CpuColor','RamColor','ValueColor')
 $process=$null
 function Open-Widget {
  $script:process=Start-Process -FilePath $Executable -WindowStyle Hidden -PassThru
@@ -31,6 +31,8 @@ function Width {$r=New-Object GpuTest+R;[void][GpuTest]::GetWindowRect($handle,[
 try {
  # Missing preference must default to disabled, even on the very first run.
  Remove-ItemProperty $prefs GpuEnabled -ErrorAction SilentlyContinue
+ # The optional speed limit also loads PDH; keep it off for this check.
+ New-ItemProperty $prefs LimitEnabled -Value 0 -PropertyType DWord -Force | Out-Null
  New-ItemProperty $prefs Taskbar -Value 1 -PropertyType DWord -Force | Out-Null
  New-ItemProperty $prefs TextScale -Value 100 -PropertyType DWord -Force | Out-Null
  Open-Widget

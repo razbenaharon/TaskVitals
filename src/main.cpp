@@ -18,9 +18,11 @@
 #include <wchar.h>
 #include <string.h>
 #include "gpu.h"
+#include "thermal.h"
 
 namespace {
 GpuReader gpu = {};
+LimitReader limit = {};
 const wchar_t* kClass = L"TaskVitals.Window.1";
 const wchar_t* kPrefs = L"Software\\TaskVitals";
 const wchar_t* kRun = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -38,18 +40,19 @@ enum { Startup=102, Quit, TaskbarMode, Refresh1=201, Refresh2, Refresh5, Refresh
        TextSmall=301, TextNormal, TextLarge, PositionRight=401, PositionCenter,
        PositionLeft, PositionCustom, MoveLeft, MoveRight,
        ColorsDefault=501, ColorsWhite, ColorsOcean, ColorsWarm, ColorsDark,
-       PickCpuColor, PickRamColor, PickValueColor, ToggleGpu=601 };
+       PickCpuColor, PickRamColor, PickValueColor, ToggleGpu=601, ToggleLimit, ToggleTemperature };
 struct CpuTimes { uint64_t idle, kernel, user; };
 struct State {
     HWND window, tooltip; HFONT regular, number, labelFont; int dpi;
     bool ready, haveCpu, haveMemory, compact, dragging, gpuEnabled, haveGpu;
+    bool limitEnabled, haveLimit, temperatureEnabled, haveTemperature;
     bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook;
-    double gpuUsage;
+    double gpuUsage, limitPercent, temperature;
     CpuTimes previous; double cpu; MEMORYSTATUSEX memory;
     int x, y;
     UINT refreshMs;
     UINT textScale, anchor; int taskbarOffset;
-    SYSTEMTIME sampledAt; wchar_t tooltipText[512];
+    SYSTEMTIME sampledAt; wchar_t tooltipText[1024];
     Palette colors;
 } s = {};
 struct Span { int left,right; };
@@ -172,8 +175,20 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
 }
 
 int px(int n) { return MulDiv(n, s.dpi*int(s.textScale), 9600); }
-int compactWidth() { return s.gpuEnabled?294:196; }
-int desktopWidth() { return s.gpuEnabled?474:320; }
+// CPU and RAM are always shown; each optional metric adds one column.
+struct Column { const wchar_t* label; bool valid, degrees; double value; COLORREF accent; };
+int columns(Column* list) {
+    int n=0;
+    list[n++]={L"CPU",s.haveCpu,false,s.cpu,s.colors.cpu};
+    list[n++]={L"RAM",s.haveMemory,false,double(s.memory.dwMemoryLoad),s.colors.ram};
+    if(s.gpuEnabled) list[n++]={L"GPU",s.haveGpu,false,s.gpuUsage,s.colors.ram};
+    if(s.limitEnabled) list[n++]={L"LIM",s.haveLimit,false,s.limitPercent,s.colors.cpu};
+    if(s.temperatureEnabled) list[n++]={L"TEMP",s.haveTemperature,true,s.temperature,s.colors.cpu};
+    return n;
+}
+int extraColumns() { return int(s.gpuEnabled)+int(s.limitEnabled)+int(s.temperatureEnabled); }
+int compactWidth() { return 196+98*extraColumns(); }
+int desktopWidth() { return 320+154*extraColumns(); }
 uint64_t ticks(FILETIME t) { return (uint64_t(t.dwHighDateTime)<<32) | t.dwLowDateTime; }
 bool readCpu(CpuTimes& t) {
     FILETIME i,k,u;
@@ -198,9 +213,9 @@ void save() {
     if (RegCreateKeyExW(HKEY_CURRENT_USER,kPrefs,0,0,0,KEY_SET_VALUE,0,&key,0)!=ERROR_SUCCESS) return;
     RECT r; GetWindowRect(s.window,&r);
     if(!s.compact) { s.x=r.left; s.y=r.top; }
-    DWORD values[]={DWORD(s.x),DWORD(s.y),DWORD(s.compact),DWORD(s.refreshMs),s.textScale,s.anchor,DWORD(s.taskbarOffset),s.colors.cpu,s.colors.ram,s.colors.value,DWORD(s.gpuEnabled)};
-    const wchar_t* names[]={L"X",L"Y",L"Taskbar",L"RefreshMs",L"TextScale",L"Anchor",L"TaskbarOffset",L"CpuColor",L"RamColor",L"ValueColor",L"GpuEnabled"};
-    for (int i=0;i<11;i++) RegSetValueExW(key,names[i],0,REG_DWORD,reinterpret_cast<BYTE*>(&values[i]),sizeof(DWORD));
+    DWORD values[]={DWORD(s.x),DWORD(s.y),DWORD(s.compact),DWORD(s.refreshMs),s.textScale,s.anchor,DWORD(s.taskbarOffset),s.colors.cpu,s.colors.ram,s.colors.value,DWORD(s.gpuEnabled),DWORD(s.limitEnabled),DWORD(s.temperatureEnabled)};
+    const wchar_t* names[]={L"X",L"Y",L"Taskbar",L"RefreshMs",L"TextScale",L"Anchor",L"TaskbarOffset",L"CpuColor",L"RamColor",L"ValueColor",L"GpuEnabled",L"LimitEnabled",L"TemperatureEnabled"};
+    for (int i=0;i<13;i++) RegSetValueExW(key,names[i],0,REG_DWORD,reinterpret_cast<BYTE*>(&values[i]),sizeof(DWORD));
     RegCloseKey(key);
 }
 COLORREF validColor(DWORD color,COLORREF fallback) {
@@ -269,21 +284,21 @@ void toggleStartup() {
     if (result!=ERROR_SUCCESS) MessageBoxW(s.window,L"Could not change startup settings.",L"TaskVitals",MB_OK|MB_ICONERROR);
 }
 void sample() {
-    bool oldCpu=s.haveCpu,oldMemory=s.haveMemory,oldGpu=s.haveGpu;
-    int oldGpuPercent=int(s.gpuUsage+0.5);
-    int oldPercent=int(s.cpu+0.5);
-    DWORD oldMemoryPercent=s.memory.dwMemoryLoad;
+    Column before[5]; int count=columns(before);
     CpuTimes now;
     if (readCpu(now)) { s.haveCpu=s.ready && cpuUsage(s.previous,now,s.cpu); s.previous=now; s.ready=true; }
     else { s.ready=false; s.haveCpu=false; }
     s.memory.dwLength=sizeof(s.memory); s.haveMemory=GlobalMemoryStatusEx(&s.memory)!=FALSE;
     if(s.gpuEnabled) s.haveGpu=gpu.sample(s.gpuUsage);
+    if(s.limitEnabled) s.haveLimit=limit.sample(s.limitPercent);
+    if(s.temperatureEnabled) s.haveTemperature=readCoreTemp(s.temperature);
     GetLocalTime(&s.sampledAt);
-    if(oldCpu!=s.haveCpu || oldMemory!=s.haveMemory ||
-       (s.haveCpu && oldPercent!=int(s.cpu+0.5)) ||
-       (s.haveMemory && oldMemoryPercent!=s.memory.dwMemoryLoad) || oldGpu!=s.haveGpu ||
-       (s.gpuEnabled && s.haveGpu && oldGpuPercent!=int(s.gpuUsage+0.5)))
-        InvalidateRect(s.window,0,FALSE);
+    // Repaint only when a displayed (rounded) value or its availability changes.
+    Column after[5]; columns(after);
+    for(int i=0;i<count;i++)
+        if(before[i].valid!=after[i].valid || (after[i].valid && int(before[i].value+0.5)!=int(after[i].value+0.5))) {
+            InvalidateRect(s.window,0,FALSE); break;
+        }
 }
 void fill(HDC dc, RECT r, COLORREF color) { HBRUSH b=CreateSolidBrush(color); FillRect(dc,&r,b); DeleteObject(b); }
 void text(HDC dc, const wchar_t* value, RECT r, HFONT font, COLORREF color, UINT flags=DT_LEFT) {
@@ -298,7 +313,15 @@ void updateTooltipRect() {
     SendMessageW(s.tooltip,TTM_NEWTOOLRECTW,0,reinterpret_cast<LPARAM>(&tool));
 }
 void buildTooltip() {
-    wchar_t cpu[64],memory[160],gpuText[96]=L"";
+    wchar_t cpu[64],memory[160],gpuText[96]=L"",limitText[128]=L"",temperatureText[96]=L"";
+    if(s.limitEnabled) {
+        if(s.haveLimit) wsprintfW(limitText,L"CPU speed limit: %d%% of maximum (lower when slowed by heat or power saving)\r\n",int(s.limitPercent+0.5));
+        else lstrcpyW(limitText,L"CPU speed limit: waiting for samples or counter unavailable\r\n");
+    }
+    if(s.temperatureEnabled) {
+        if(s.haveTemperature) wsprintfW(temperatureText,L"CPU temperature: %d\u00B0C (hottest core, read from Core Temp)\r\n",int(s.temperature+0.5));
+        else lstrcpyW(temperatureText,L"CPU temperature: start Core Temp to show it\r\n");
+    }
     if(s.gpuEnabled) {
         if(s.haveGpu) wsprintfW(gpuText,L"GPU: %d%% (busiest engine across all GPUs)\r\n",int(s.gpuUsage+0.5));
         else lstrcpyW(gpuText,L"GPU: waiting for samples or counters unavailable\r\n");
@@ -319,8 +342,8 @@ void buildTooltip() {
     static Tick64 ticks64=0;
     if(!ticks64) ticks64=reinterpret_cast<Tick64>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"GetTickCount64"));
     ULONGLONG minutes=(ticks64?ticks64():GetTickCount())/60000;
-    wsprintfW(s.tooltipText,L"%s\r\n%s\r\n%sUptime: %u days, %u h %u min\r\nSampled: %02u:%02u:%02u | Refresh: %u s\r\nRight-click for options. Ctrl+drag to move.",
-        cpu,memory,gpuText,UINT(minutes/1440),UINT((minutes/60)%24),UINT(minutes%60),UINT(s.sampledAt.wHour),UINT(s.sampledAt.wMinute),UINT(s.sampledAt.wSecond),s.refreshMs/1000);
+    wsprintfW(s.tooltipText,L"%s\r\n%s\r\n%s%s%sUptime: %u days, %u h %u min\r\nSampled: %02u:%02u:%02u | Refresh: %u s\r\nRight-click for options. Ctrl+drag to move.",
+        cpu,memory,gpuText,limitText,temperatureText,UINT(minutes/1440),UINT((minutes/60)%24),UINT(minutes%60),UINT(s.sampledAt.wHour),UINT(s.sampledAt.wMinute),UINT(s.sampledAt.wSecond),s.refreshMs/1000);
 }
 void createTooltip() {
     INITCOMMONCONTROLSEX controls={sizeof(controls),ICC_BAR_CLASSES};
@@ -443,28 +466,32 @@ bool setTextScale(UINT scale) {
 }
 void draw(HDC dc) {
     RECT client; GetClientRect(s.window,&client); fill(dc,client,kBackground); SetBkMode(dc,TRANSPARENT);
+    Column list[5]; int count=columns(list);
     if(s.compact) {
-        for(int n=0;n<(s.gpuEnabled?3:2);n++) {
+        for(int n=0;n<count;n++) {
             int left=n*98;
             if(n) fill(dc,box(left,7,left+1,25),RGB(60,66,78));
-            bool valid=n==2?s.haveGpu:n?s.haveMemory:s.haveCpu;
-            int value=int((n==2?s.gpuUsage:n?double(s.memory.dwMemoryLoad):s.cpu)+0.5);
-            wchar_t number[16]; if(valid) wsprintfW(number,L"%d%%",value); else wcscpy(number,L"--");
-            text(dc,n==2?L"GPU":n?L"RAM":L"CPU",box(left+8,0,left+51,31),s.labelFont,n?s.colors.ram:s.colors.cpu);
+            wchar_t number[16];
+            if(!list[n].valid) wcscpy(number,L"--");
+            // The narrow strip has room for "63°" but not "63°C".
+            else wsprintfW(number,list[n].degrees?L"%d\u00B0":L"%d%%",int(list[n].value+0.5));
+            text(dc,list[n].label,box(left+8,0,left+51,31),s.labelFont,list[n].accent);
             text(dc,number,box(left+51,0,left+91,31),s.regular,s.colors.value,DT_RIGHT);
         }
         return;
     }
     text(dc,L"TaskVitals",box(14,7,192,33),s.regular,RGB(231,235,241));
-    for(int n=0;n<(s.gpuEnabled?3:2);n++) {
+    for(int n=0;n<count;n++) {
         int left=12+n*154; fill(dc,box(left,40,left+142,133),RGB(32,37,46));
-        bool valid=n==2?s.haveGpu:n?s.haveMemory:s.haveCpu;
-        double value=n==2?s.gpuUsage:n?double(s.memory.dwMemoryLoad):s.cpu;
-        wchar_t number[32]; if(valid) wsprintfW(number,L"%d%%",int(value+0.5)); else wcscpy(number,L"--");
-        text(dc,n==2?L"GPU":n?L"RAM":L"CPU",box(left+12,46,left+130,68),s.labelFont,n?s.colors.ram:s.colors.cpu);
+        int value=int(list[n].value+0.5);
+        wchar_t number[32];
+        if(!list[n].valid) wcscpy(number,L"--");
+        else wsprintfW(number,list[n].degrees?L"%d\u00B0C":L"%d%%",value);
+        text(dc,list[n].label,box(left+12,46,left+130,68),s.labelFont,list[n].accent);
         text(dc,number,box(left+12,67,left+130,108),s.number,s.colors.value);
         RECT track=box(left+12,117,left+130,120); fill(dc,track,RGB(54,62,77));
-        if(valid) { track.right=track.left+int((track.right-track.left)*int(value+0.5)/100); fill(dc,track,n?s.colors.ram:s.colors.cpu); }
+        // Percentages fill to 100%; temperature uses a 0-100 degree scale.
+        if(list[n].valid) { track.right=track.left+int((track.right-track.left)*(value>100?100:value)/100); fill(dc,track,list[n].accent); }
     }
 }
 void paint() {
@@ -477,10 +504,17 @@ void paint() {
     if(buffer) DeleteDC(buffer);
     EndPaint(s.window,&ps);
 }
+void columnsChanged() {
+    if(s.compact) positionTaskbar();
+    else { SetWindowPos(s.window,0,0,0,px(desktopWidth()),px(145),SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE); SendMessageW(s.window,WM_DISPLAYCHANGE,0,0); }
+    updateTooltipRect(); save(); InvalidateRect(s.window,0,FALSE);
+}
 void menu(POINT point) {
     HMENU m=CreatePopupMenu();
     AppendMenuW(m,MF_STRING|(s.compact?MF_CHECKED:0),TaskbarMode,L"Taskbar view");
     AppendMenuW(m,MF_STRING|(s.gpuEnabled?MF_CHECKED:0),ToggleGpu,L"Show GPU (optional)");
+    AppendMenuW(m,MF_STRING|(s.limitEnabled?MF_CHECKED:0),ToggleLimit,L"Show CPU speed limit (optional)");
+    AppendMenuW(m,MF_STRING|(s.temperatureEnabled?MF_CHECKED:0),ToggleTemperature,L"Show CPU temperature (needs Core Temp)");
     HMENU sizes=CreatePopupMenu();
     const UINT scales[]={85,100,120};
     const wchar_t* sizeLabels[]={L"Small",L"Normal (default)",L"Large"};
@@ -551,9 +585,15 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         case ToggleGpu:
             s.gpuEnabled=!s.gpuEnabled; s.haveGpu=false; s.gpuUsage=0;
             if(s.gpuEnabled) gpu.start(); else gpu.stop();
-            if(s.compact) positionTaskbar();
-            else { SetWindowPos(s.window,0,0,0,px(desktopWidth()),px(145),SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE); SendMessageW(w,WM_DISPLAYCHANGE,0,0); }
-            updateTooltipRect(); save(); InvalidateRect(w,0,FALSE); break;
+            columnsChanged(); break;
+        case ToggleLimit:
+            s.limitEnabled=!s.limitEnabled; s.haveLimit=false; s.limitPercent=0;
+            if(s.limitEnabled) s.haveLimit=limit.start() && limit.sample(s.limitPercent); else limit.stop();
+            columnsChanged(); break;
+        case ToggleTemperature:
+            s.temperatureEnabled=!s.temperatureEnabled; s.temperature=0;
+            s.haveTemperature=s.temperatureEnabled && readCoreTemp(s.temperature);
+            columnsChanged(); break;
         case ColorsDefault: case ColorsWhite: case ColorsOcean: case ColorsWarm: case ColorsDark:
             s.colors=kPalettes[LOWORD(wp)-ColorsDefault]; colorsChanged(); break;
         case PickCpuColor: chooseColor(s.colors.cpu); break;
@@ -609,7 +649,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
             SHAppBarMessage(ABM_REMOVE,&bar); s.appBar=false;
         }
         if(s.foregroundHook) { UnhookWinEvent(s.foregroundHook); s.foregroundHook=0; }
-        gpu.stop();
+        gpu.stop(); limit.stop();
         KillTimer(w,1); KillTimer(w,2);
         if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
         if(s.tooltip) { DestroyWindow(s.tooltip); s.tooltip=0; }
@@ -633,6 +673,18 @@ int selfTest() {
     if(gpuAggregate(counters,1,usage) || gpuAggregate(counters,0,usage)) return 23;
     wchar_t key[96];
     if(gpuEngineKey(L"pid_1_engtype_3D",key)) return 24;
+    CoreTempData core={}; double celsius=0;
+    if(coreTempHottest(core,celsius)) return 30;
+    core.cpuCount=1; core.coreCount=4;
+    core.temperature[0]=55; core.temperature[1]=71.5f; core.temperature[2]=60; core.temperature[3]=0;
+    if(!coreTempHottest(core,celsius) || celsius!=71.5) return 31;
+    core.fahrenheit=1; core.temperature[1]=212;
+    if(!coreTempHottest(core,celsius) || celsius!=100) return 32;
+    core.fahrenheit=0; core.deltaToTjMax=1; core.tjMax[0]=100;
+    core.temperature[0]=40; core.temperature[1]=25; core.temperature[2]=30; core.temperature[3]=100;
+    if(!coreTempHottest(core,celsius) || celsius!=75) return 33;
+    core.coreCount=257;
+    if(coreTempHottest(core,celsius)) return 34;
     int x=0; Span spans[]={{0,540},{1500,1920}};
     if(!freePosition(12,1908,196,12,spans,2,x) || x!=540) return 10;
     if(!freePosition(12,1908,196,1712,spans,2,x) || x!=1304) return 11;
@@ -683,6 +735,8 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     if(s.textScale!=85 && s.textScale!=100 && s.textScale!=120) s.textScale=100;
     s.anchor=pref(L"Anchor",0); if(s.anchor>3) s.anchor=0;
     s.gpuEnabled=pref(L"GpuEnabled",0)==1;
+    s.limitEnabled=pref(L"LimitEnabled",0)==1;
+    s.temperatureEnabled=pref(L"TemperatureEnabled",0)==1;
     s.taskbarOffset=int(pref(L"TaskbarOffset",0));
     if(s.taskbarOffset<0 || s.taskbarOffset>65535) s.taskbarOffset=0;
     s.colors.cpu=validColor(pref(L"CpuColor",kPalettes[0].cpu),kPalettes[0].cpu);
@@ -715,8 +769,9 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     if(s.appBar) s.foregroundHook=SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,0,
         foregroundChanged,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
     setMode(pref(L"Taskbar",1)!=0);
-    sample();
     if(s.gpuEnabled) gpu.start();
+    if(s.limitEnabled) limit.start();
+    sample();
     if(!setRefresh(s.refreshMs)) { DestroyWindow(s.window); CloseHandle(mutex); return 1; }
     if(!s.hidden) ShowWindow(s.window,SW_SHOWNOACTIVATE);
     UpdateWindow(s.window);

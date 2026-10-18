@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added an optional CPU speed-limit column (`LIM`), off by default, from the Windows `% Performance Limit` counter; PDH loads only while it is enabled.
+- Added an optional CPU temperature column (`TEMP`), off by default, read from Core Temp's shared memory; no driver or administrator access in TaskVitals itself.
+- Generalized the column layout so GPU, speed limit and temperature can be combined in both views.
+- Added Core Temp parsing self-tests (Celsius, Fahrenheit, distance to TjMax, invalid counts) and `tests/thermal.ps1`.
 - Added an application icon.
 - Hid the widget while a full-screen app is in front on its monitor, following the shell's own full-screen notification; it returns with the taskbar.
 

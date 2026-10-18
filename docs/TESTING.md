@@ -50,6 +50,10 @@ The script records CPU time and cycles, sampled working/private memory, GDI/USER
 
 With the widget running, use `./tests/placement.ps1` on an interactive desktop. It independently queries actual shell button rectangles through UI Automation and checks Left and Right at all three text sizes. The app itself uses native accessibility and caches control bounds. The built-in self-test also covers synthetic centered, overlapping and full taskbar layouts.
 
+## Optional CPU speed limit and temperature
+
+Close the widget and run `./tests/thermal.ps1`. It checks that both options default to off, that PDH is absent while the speed limit is off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop image under `build/verification`. The built-in self-test checks Core Temp parsing for Celsius, Fahrenheit, distance to TjMax and invalid core counts without Core Temp installed.
+
 ## Optional GPU
 
 Close the widget and run `./tests/gpu.ps1`. It checks the missing-preference default, PDH absence while off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop GPU image under `build/verification`. Counter availability depends on the driver. The built-in self-test checks per-engine aggregation, adapter separation, invalid samples and the 100% cap without loading PDH.
