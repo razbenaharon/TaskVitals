@@ -4,8 +4,9 @@
 #include <stddef.h>
 #include <string.h>
 
-// "% Performance Limit": the share of maximum performance the processor is
-// currently allowed, lowered by heat or power policy. No PDH startup import.
+// "% Performance Limit": the performance the processor guarantees, as a share of
+// its nominal (base) performance; Windows lowers it for power policy, power
+// budget or heat. No PDH startup import.
 struct LimitReader {
     HMODULE library; HANDLE query,counter;
     LONG (WINAPI *open)(LPCWSTR,DWORD_PTR,HANDLE*);

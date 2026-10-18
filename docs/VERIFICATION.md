@@ -1,16 +1,21 @@
 # Release verification
 
-Version 1.7.0, prepared on 2026-10-16 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.7.0).
+Version 1.8.0, prepared on 2026-10-18 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.8.0).
 
-Version 1.7.0 was rebuilt with optional GPU monitoring, then checked with the GUI smoke suite, GPU toggle/restart tests, live placement tests and built-in aggregation tests. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
+Version 1.8.0 adds the optional CPU speed-limit and CPU temperature columns. The final build was checked with the built-in self-test, the GUI smoke suite, the GPU and thermal toggle/restart tests and the live placement test. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
 
 ## Current checks
 
+- Speed limit and temperature are disabled when their preferences are missing; PDH is absent from a fresh process with GPU and the speed limit off.
+- Each new column expands the strip, survives restart, and disables back; repeated speed-limit toggles release PDH on this test machine.
+- The temperature column was checked live against Core Temp 1.21 on the test machine: it read all 10 cores in Celsius, the values read directly from the shared memory agreed with Core Temp, and the column followed Core Temp's hottest core. Displayed values can differ from Core Temp's own window by sampling time, because Core Temp updates every second and TaskVitals at its refresh interval. With Core Temp not running, it showed `--`.
+- Core Temp parsing self-tests cover Celsius, Fahrenheit, distance to TjMax, out-of-range readings and invalid core counts; a simulated block in Core Temp's documented layout was also read end to end.
+- A normal-user TaskVitals process could read the shared memory published by an elevated Core Temp.
 - GPU is disabled when its preference is missing; PDH is absent from a fresh GPU-off process.
 - GPU enable expands the strip, survives restart, and disables back to two columns. Repeated disable closes PDH and unloads the library on this test machine.
 - Real GPU Engine counters produced valid utilization samples on the test machine.
 - Aggregation tests cover multiple processes on one engine, separate adapters/engines, invalid samples and the 100% cap.
-- Independent live placement checks cover the wider GPU-enabled strip at all three sizes.
+- Independent live placement checks covered a three-column strip at all three sizes with no app/system button overlap.
 
 - Built with MinGW.org GCC 6.3.0, -O2, -Wall and -Wextra, without warnings.
 - Sampling self-test, single instance, topmost, view changes, refresh choices, startup registration/removal and exit passed.
@@ -23,18 +28,18 @@ Version 1.7.0 was rebuilt with optional GPU monitoring, then checked with the GU
 - A percentage color equal to the transparency key was safely adjusted by one red-channel step, so foreground pixels do not become fully transparent.
 - COMDLG32 was present while the picker was open and absent after closing. It is not a startup import. No additional sampling timer was introduced.
 - English UI/documentation and relative Markdown links are checked before packaging.
-- The portable archive includes a self-tested executable and a SHA-256 sidecar.
+- The portable archive includes a self-tested executable, LICENSE, THIRD-PARTY-NOTICES.txt and a SHA-256 sidecar; the extracted executable passed the self-test and matched the tested build byte for byte.
 
 ## Binary identity
 
 - File: TaskVitals.exe
 - Architecture: x86
-- Size: 53,760 bytes
-- SHA-256: 0B2CD32459140E5BFD79E347A612B043D621AF39A9959D6DE2E49CB33739C611
+- Size: 90,112 bytes
+- SHA-256: DF31710B79A5D97417BADC1847294D0A14B39297DB1B7652BCA21BBA2F5F00B0
 - Signature: unsigned
 
-The current [smoke report](measurements/publication-smoke.json) recorded 12.46 MiB working set and 2.77 MiB private memory during its 12-second desktop observation; GDI stayed at 14 and USER resources at 7. Process CPU time was 15.62 ms. Separate GPU-off/on observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).
+The current [smoke report](measurements/publication-smoke.json) recorded 13.54 MiB working set and 2.98 MiB private memory during its 12-second desktop observation; GDI stayed at 17 and USER resources at 9. Process CPU time was 0 ms at the reported resolution. Separate speed-limit/temperature and GPU observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).
 
-The longer resource reference in [PERFORMANCE.md](PERFORMANCE.md) describes 1.4.1 before the color option. The current short observation is linked there separately; no controlled long-duration comparison has been made for 1.7.0. Colors are cached RGB values; the custom picker is event-driven and its library is released after the dialog closes.
+The longer resource reference in [PERFORMANCE.md](PERFORMANCE.md) describes 1.4.1 before the color option. The current short observation is linked there separately; no controlled long-duration comparison has been made for 1.8.0. Colors are cached RGB values; the custom picker is event-driven and its library is released after the dialog closes.
 
-The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) successfully built, self-tested and packaged MSVC x86 and x64. GUI and performance checks apply to the supplied MinGW x86 portable binary. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
+The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) builds, self-tests and packages MSVC x86 and x64 for each push, including the release commit. GUI and performance checks apply to the supplied MinGW x86 portable binary. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.

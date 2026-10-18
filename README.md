@@ -1,148 +1,235 @@
 # TaskVitals
 
-**A portable Windows 11 taskbar CPU and RAM monitor with optional GPU usage.**
+[![Windows build](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml/badge.svg)](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/razbenaharon/TaskVitals)](https://github.com/razbenaharon/TaskVitals/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-See CPU and memory usage at a glance in a small transparent taskbar strip. TaskVitals is a native C++/Win32 system monitor: no installation, no Electron and no .NET runtime. GPU monitoring is optional and off by default. English-only interface, open source under the MIT license.
+**A small, portable CPU and RAM monitor for the Windows 11 taskbar.**
 
-Built for people who want a few readable numbers on the taskbar, with hover details and simple controls for size, color, position and refresh speed.
+![TaskVitals showing CPU 31% and RAM 47% on the Windows taskbar](docs/images/taskbar.png)
 
-![TaskVitals on the Windows taskbar](docs/images/taskbar.png)
+TaskVitals shows CPU and memory usage as a few readable percentages in a transparent strip over your taskbar. Hover for details, right-click for options. It is one native C++/Win32 executable with an English-only interface, open source under the MIT license.
+
+- **On the taskbar:** CPU and RAM sit in a free gap on the taskbar, placed to avoid your app buttons. You can also switch to draggable desktop cards. The widget hides while a full-screen app is in front on its monitor.
+- **Opt-in extras:** [GPU usage, CPU speed limit and CPU temperature](#optional-columns) stay off until you turn them on. Temperature needs the separate Core Temp utility.
+- **Portable:** one executable of about 88 KiB that runs as your normal user, with no installer, Electron or .NET runtime. TaskVitals itself never needs administrator rights; the optional temperature column relies on Core Temp, which does.
+- **Light:** one sampling timer (5 seconds by default), and it repaints only when a shown value changes. With default settings it used about 13 MiB of working set in short observations on one Windows 11 machine. [Resource use](#resource-use)
+- **Private:** no telemetry, account or automatic update checks. [What it touches](#privacy-what-taskvitals-touches)
+- **Checkable:** open source, with a SHA-256 checksum next to each release download, plus automated MSVC builds and self-tests in CI (separate from the download). [Verify your download](#verify-your-download)
+
+> **New in 1.8.0:** two optional columns, **CPU speed limit** (`LIM`) and **CPU temperature** (`TEMP`), both off by default. This release also adds an application icon, and the widget now hides while a full-screen app is in front on its monitor. See the [changelog](CHANGELOG.md).
 
 ## Download
 
-**[Download for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.7.0/TaskVitals-1.7.0-windows-x86.zip)** · [Release notes and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
+**[Download TaskVitals 1.8.0 for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.8.0/TaskVitals-1.8.0-windows-x86.zip)** · [Release notes, checksum and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
 
-1. Download `TaskVitals-1.7.0-windows-x86.zip` and choose **Extract all**.
+1. Download `TaskVitals-1.8.0-windows-x86.zip`, right-click it and choose **Extract all**.
 2. Keep the extracted folder somewhere permanent, then double-click `TaskVitals.exe`.
-3. Look for **CPU / RAM** on your taskbar. Right-click the visible text for options, including **Show GPU (optional)** and **Exit**.
+3. Look for **CPU** and **RAM** on your taskbar, by default near the notification area. Right-click the visible text for options, including **Exit**.
 
-The portable x86 build is tested on x64 Windows 11. No account, installer or administrator permission is required. The ZIP contains `TaskVitals.exe`, `README.txt`, `LICENSE` and `CHANGELOG.md`. The first CPU percentage arrives with the next sample, normally after 5 seconds. GPU and startup with Windows are off by default.
+TaskVitals needs no installer, account or administrator permission. (The optional temperature column relies on Core Temp, a separate program that asks for administrator approval; see [CPU temperature](#cpu-temperature).) The x86 build is tested on x64 Windows 11. The first CPU percentage appears with the second sample, after 5 seconds by default. The optional columns and **Start with Windows** stay off until you turn them on. Only one copy runs at a time; starting `TaskVitals.exe` again brings the running copy forward.
 
-The executable is unsigned. Windows may prompt when running a downloaded copy. Source and build instructions are included for anyone who prefers to build it.
+The ZIP contains `TaskVitals.exe`, `README.txt` (a short plain-text guide), `LICENSE`, `CHANGELOG.md` and `THIRD-PARTY-NOTICES.txt`. `TaskVitals.exe` is 90,112 bytes (about 88 KiB), x86, built with MinGW.org GCC 6.3.0, and **unsigned**, so Windows may warn before it runs a downloaded copy. See [Verify your download](#verify-your-download).
 
-## Features
+## Read the numbers
 
-- Transparent CPU and RAM percentages over the taskbar, plus an optional desktop card view.
-- Optional GPU utilization, **off by default**, with no GPU sampling or PDH startup load while disabled.
-- Optional CPU speed limit and CPU temperature (read from Core Temp), both **off by default**. No driver or administrator access in TaskVitals itself.
-- Hover details: used, total and available RAM, uptime, and the last sample time.
-- Small, Normal and Large text, with a layout that scales to fit.
-- Five color presets and custom CPU/RAM accent and percentage-text colors.
-- Taskbar position presets, small position adjustments, and Ctrl+drag placement.
-- Placement avoids taskbar controls and reacts to app buttons appearing or moving.
-- Refresh every 1, 2, 5 or 10 seconds; **5 seconds by default**.
-- Saved preferences, optional startup, and single-instance operation.
-- Native Win32 message loop, one sampling timer, and conditional repainting.
+| Label | What it shows | Default |
+| --- | --- | --- |
+| **CPU** | Processor busy time, averaged since the previous sample | Shown |
+| **RAM** | Total physical memory in use | Shown |
+| **GPU** | Busiest GPU engine across all GPUs ([details](#gpu-usage)) | Off |
+| **LIM** | CPU speed limit reported by Windows; not a temperature ([details](#cpu-speed-limit)) | Off |
+| **TEMP** | Hottest CPU core in °C, read from Core Temp ([details](#cpu-temperature)) | Off |
 
-![Hover details](docs/images/tooltip.png)
+- Values are rounded to whole numbers. Temperature shows as `68°` on the taskbar and `68°C` on the desktop cards.
+- `--` means there is no valid reading yet or the source is unavailable. CPU shows `--` until a second valid sample arrives.
+- CPU and GPU are averaged over the refresh interval, so a longer interval smooths out their short spikes. RAM and TEMP are read at the moment of each sample.
 
-## Controls
+Hover over the visible text for details: CPU, used, total and available RAM, Windows uptime, the last sample time and the refresh interval. Each optional column you turn on adds its own line. The details are a snapshot, so move away and hover again to update them.
 
-| Action | How |
+![Hover details showing CPU, used and available RAM, Windows uptime, sample time and refresh interval](docs/images/tooltip.png)
+
+## Customize it
+
+Right-click the visible text to open the menu. Transparent pixels pass mouse input through to the taskbar, so aim at the letters or numbers. There is no tray icon or taskbar button, so this menu is the main control.
+
+| To... | Do this |
 | --- | --- |
-| Open options | Right-click the visible text |
+| Open options | Right-click the visible text, or press **Shift+F10** when the widget has focus |
 | See more detail | Hover over the visible text |
-| Show GPU usage | Check **Show GPU (optional)**; off by default |
-| Show CPU speed limit | Check **Show CPU speed limit (optional)**; off by default |
-| Show CPU temperature | Check **Show CPU temperature (needs Core Temp)**; off by default |
-| Change text size | **Text size** in the menu |
-| Change colors | **Colors** in the menu |
-| Change placement | **Taskbar position** in the menu |
-| Set a custom taskbar position | Hold **Ctrl** and drag the visible text |
-| Show the desktop cards | Uncheck **Taskbar view** |
-| Move the desktop cards | Drag the title or either card |
-| Change refresh speed | **Refresh interval** in the menu |
-| Start at sign-in | Check **Start with Windows** |
+| Add an optional column | Check **Show GPU (optional)**, **Show CPU speed limit (optional)** or **Show CPU temperature (needs Core Temp)** |
+| Change text size | **Text size**: Small, Normal (default) or Large |
+| Change colors | **Colors**: five presets or custom colors |
+| Move it along the taskbar | **Taskbar position**: Right (near notification area, the default), Center of available space, Left (after app buttons) or Custom (Ctrl+drag), plus **Move left** / **Move right**, which nudge it and switch to Custom |
+| Pick a custom spot | Hold **Ctrl** and drag the visible text |
+| Switch to desktop cards | Uncheck **Taskbar view** |
+| Move the desktop cards | Drag anywhere on them |
+| Change refresh speed | **Refresh interval**: 1, 2, 5 (default) or 10 seconds |
+| Start at sign-in | Check **Start with Windows** (off by default, your user account only) |
 | Quit | **Exit**, or **Esc** when the widget has focus |
 
-Transparent pixels pass mouse input through to the taskbar. Aim at the letters or numbers when hovering or opening the menu. There is no taskbar button or tray icon; the right-click menu is the main control.
+Your choices are saved and survive a restart. [Settings](docs/SETTINGS.md) lists the registry values.
 
-The **Colors** menu offers Default, White, Ocean, Warm and Dark text presets. Use **CPU label and bar...**, **RAM label and bar...**, or **Percentage text...** for a custom Windows RGB picker. Colors apply to both views and survive restart. The background stays transparent in taskbar mode. The picker loads only while it is being used; it adds no sampling timer.
+**Colors.** The presets are Default (mint / lavender), White, Ocean (blue / cyan), Warm (amber / coral) and Dark text (for a light taskbar). **CPU label and bar...**, **RAM label and bar...** and **Percentage text...** open the Windows color picker. The picker loads only while it is open and adds no sampling timer. Colors apply to both views, and the taskbar background stays transparent. The GPU column uses the RAM color, and `LIM` and `TEMP` use the CPU color.
 
-![Ocean color preset](docs/images/colors.png)
+<p>
+  <img src="docs/images/desktop.png" alt="Desktop cards with the Default colors: CPU 74%, RAM 44%" width="320">
+  <img src="docs/images/colors.png" alt="Desktop cards with the Ocean color preset" width="320">
+</p>
 
-![Desktop card view](docs/images/desktop.png)
+**Placement.** The taskbar view targets the primary horizontal taskbar. TaskVitals uses Windows accessibility to read where the taskbar's buttons and controls are, places itself in a free gap, and moves when app buttons appear or shift. A Ctrl+drag position is a preference, and collision avoidance still applies to it. If no gap fits, or the controls can't be read, the strip sits just above the taskbar. Each optional column widens the strip. **Taskbar position** applies only to the taskbar view.
 
-## Optional GPU
+## Optional columns
 
-Right-click the visible text and check **Show GPU (optional)**. Both views gain a third column. The choice is saved; new users start with GPU disabled. GPU labels and bars share the RAM accent color, and percentage text uses the selected value color.
+Each optional column is off by default, remembered between runs, and adds one column to both views. You can turn on any combination. All of them are read at the normal refresh interval, and TaskVitals adds no extra timer, worker thread, service or driver for them. Nothing is sampled while a column is off.
 
-GPU is sampled at the existing 1/2/5/10-second refresh interval. The native Windows PDH library and query are initialized only when enabled. A bounded buffer is reused between samples, and the query, buffer and library reference are released when disabled. No separate service, worker, driver installation or sampling timer is added.
+![Desktop cards showing CPU 13%, RAM 55%, LIM 80% and TEMP 68°C](docs/images/thermal.png)
 
-The percentage is the **busiest physical engine across all GPUs**: per-process readings are added only within the same adapter/physical engine, then the largest engine total is shown. This includes 3D, compute, copy and video engines exposed by Windows. It is not a sum of all GPUs, a temperature reading, VRAM usage or a promise of an exact Task Manager match. Unsupported drivers, invalid samples and startup warm-up show `--`. A longer interval smooths spikes.
+### GPU usage
 
-![Optional GPU in the desktop view](docs/images/gpu.png)
+Check **Show GPU (optional)** to add `GPU`. It shows the **busiest physical engine across all GPUs**. Per-process readings are added up only within the same adapter and physical engine, and the largest engine total is shown. This covers the 3D, compute, copy and video engines that Windows exposes. It is not a sum of all GPUs, a temperature or VRAM usage, and it can differ from Task Manager. The column shows `--` for unsupported drivers, for invalid samples and during the first interval after you turn it on. To retry, turn the option off and on.
 
-## Optional CPU speed limit and temperature
+Windows' performance-counter library (PDH) loads from the system folder only while GPU or the speed limit is on, and the GPU reader reuses one bounded buffer between samples. Turning GPU off releases its query, buffer and library reference, though Windows may keep other caches. A fresh process with both GPU and the speed limit off does not load PDH.
 
-Windows does not give ordinary programs the CPU temperature. Reading the CPU's own sensor needs a kernel driver and administrator rights, which TaskVitals does not install. Two optional columns cover this instead; each is off by default, saved, and adds one column to both views.
+![Desktop cards with the optional GPU column: CPU 38%, RAM 45%, GPU 4%](docs/images/gpu.png)
 
-**Show CPU speed limit (optional)** shows `LIM`: the share of maximum performance Windows currently allows the processor (the `% Performance Limit` counter). 100% means no limit. A lower value means the CPU is being held back, by heat or by power policy such as battery saving; the counter does not say which. It is not a temperature. It uses the same on-demand PDH loading as GPU, sampled at the refresh interval, and releases the query and library reference when disabled.
+### CPU speed limit
 
-**Show CPU temperature (needs Core Temp)** shows `TEMP`: the hottest core in °C, read from the shared memory that the separate, free [Core Temp](https://www.alcpu.com/CoreTemp/) utility publishes while it runs. Core Temp loads its own driver and asks for administrator approval; TaskVitals only reads the published block, opening and closing it on each sample, so a closed Core Temp shows `--` instead of a stale value. Fahrenheit and distance-to-TjMax modes are converted, and readings outside 0–150 °C are ignored. The reader was checked against a simulated block in Core Temp's documented layout; Core Temp itself was not running on the test machine.
+Check **Show CPU speed limit (optional)** to add `LIM`, read from the Windows **% Performance Limit** counter. Windows describes it as the performance the processor guarantees it can provide, as a percentage of its nominal (base) performance. Windows power policy, the power budget, overheating or other hardware issues can lower it.
 
-## Small by design
+- **100%** means nothing is limiting the processor below its base performance.
+- **Below 100%** means something is, but the counter does not say which cause applies.
+- `LIM` is **not a temperature** and not a clock speed.
 
-The portable executable is about **53 KiB**. Short local observations at the 5-second refresh interval recorded:
+Like GPU, it loads PDH only while it is on, and it releases the query and library reference when you turn it off.
 
-| Mode | Working set | Private memory | Process CPU across the test machine |
-| --- | --- | --- | --- |
-| GPU off (default) | 12.12–12.18 MiB | 2.31–2.46 MiB | below reported timing resolution |
-| GPU on | 16.25–16.31 MiB | 6.11–6.41 MiB | about 0.02% |
+### CPU temperature
 
-GPU adds about 4 MiB of resident memory in this observation. Zero reported CPU time does not mean zero work. The observations lasted about 30 seconds each, sequentially on one Windows 11 machine, and exclude Explorer/DWM work. Layouts are cached between shell changes; GPU data is queried only while enabled.
+Windows does not give ordinary programs the CPU temperature. Reading the sensors needs a kernel driver and administrator rights, and TaskVitals installs no driver and never asks for those rights. Instead, check **Show CPU temperature (needs Core Temp)** to add `TEMP`: the hottest core in °C, read from the shared memory that the separate Core Temp utility publishes while it runs.
 
-These are observations from one Windows 11 machine, not fixed requirements or performance guarantees. [Measurement details and limitations](docs/PERFORMANCE.md) include the raw reports and the method.
+- TaskVitals opens Core Temp's data read-only on each sample and closes it again, so a closed Core Temp shows `--` instead of an old value.
+- If Core Temp is set to Fahrenheit or to distance-to-TjMax, TaskVitals converts the reading to °C. It ignores readings of 0 °C or below and 150 °C or above.
+- On the desktop cards, the temperature bar uses a 0–100 °C scale.
+- Self-tests check the parser with simulated Core Temp data. The column was also checked live with Core Temp 1.21 on one Windows 11 machine, where it followed Core Temp's hottest core. Because Core Temp updates every second and TaskVitals once per refresh interval, the two can briefly show different values.
 
-CPU is the average busy time between samples. A longer interval smooths short spikes. RAM is total physical-memory usage. The first CPU reading is `--` until a second valid sample arrives. Hover details are a snapshot; move away and hover again to update them.
+> [!IMPORTANT]
+> **About Core Temp.** Core Temp is an independent product by ALCPU under its own license. It is free for personal use, and businesses need its commercial license. TaskVitals is not affiliated with or endorsed by ALCPU or Core Temp, and it does not include or redistribute Core Temp. If you use it, download **version 1.21 or later**, and only from <https://www.alcpu.com/CoreTemp/>, because older versions had driver vulnerabilities that were fixed later. Core Temp installs its own driver and asks for administrator approval. TaskVitals itself needs neither.
+
+> [!WARNING]
+> **Temperatures are informational only.** TaskVitals passes readings through from Core Temp. The value on the taskbar strip or desktop cards can be up to one refresh interval old, and the hover details are a snapshot that can be older. TaskVitals gives no overheating warnings. Do not rely on it to protect your hardware.
+
+## Resource use
+
+`TaskVitals.exe` is 90,112 bytes (about 88 KiB). The table shows short observations of version 1.8.0 on one Windows 11 machine. Each mode ran for 30 seconds at Normal size, Right position and the 5-second refresh, with GPU off and Core Temp 1.21 running:
+
+| Optional columns | Working set | Private memory | CPU, whole machine |
+| --- | ---: | ---: | ---: |
+| None (default) | 13.20–13.25 MiB | 2.54–2.69 MiB | below reported resolution |
+| Temperature only | 13.22–13.28 MiB | 2.50–2.68 MiB | below reported resolution |
+| Speed limit and temperature | 16.93–16.98 MiB | 6.06–6.21 MiB | 0.0043% |
+
+- The extra memory with the speed limit on comes from loading PDH, which the GPU column also uses. On version 1.7.0, with GPU on, TaskVitals measured 16.25–16.31 MiB of working set and about 0.02% of the machine's CPU.
+- Core Temp, if you run it, is its own process. It was observed at about 26 MiB of working set on the same machine, and that cost belongs to Core Temp.
+- Working set includes shareable Windows code. Private memory is closer to what the process alone holds. The CPU figures exclude work done by Explorer and the desktop compositor, and "below reported resolution" does not mean no work happened.
+
+These are short observations on one machine, not requirements, limits or guarantees. [docs/PERFORMANCE.md](docs/PERFORMANCE.md) has the raw reports, the method, one earlier outlier run and figures for older versions.
+
+<details>
+<summary>How it stays light</summary>
+
+- It uses one ordinary sampling timer and a native Win32 message loop. The window repaints only when a rounded value, or whether it is available, changes.
+- Taskbar control positions are cached. Explorer layout events trigger a re-read, which is batched through a one-shot 200 ms timer. There is no periodic scan while the event hook is available.
+- PDH loads only while GPU or the speed limit is on. GPU readings reuse one buffer, capped at 4 MiB. Collection runs on the UI thread and can take longer with many GPU processes or a slow performance provider.
+- Once per sample, TaskVitals opens Core Temp's shared memory, copies the 2,686 bytes it needs (about 2.6 KiB) and closes it again.
+- The color picker library loads on request and is released after the dialog closes.
+- Hover details reuse cached samples. There is no background worker, no working-set trimming or forced paging, and no change to global Windows settings.
+
+</details>
+
+## Privacy: what TaskVitals touches
+
+- **Network:** TaskVitals has no telemetry, account system, automatic update checker or app-level network request code. To update, download a newer release from GitHub.
+- **Storage:** it keeps preferences under `HKEY_CURRENT_USER\Software\TaskVitals`, plus one `TaskVitals` value in your user's `Run` key if you check **Start with Windows**. It writes no log or data files.
+- **Reads:** it reads CPU and memory usage from standard Windows APIs, and taskbar button positions through Windows accessibility so it can avoid covering them. It reads Windows performance counters for GPU and `LIM`, and Core Temp's data for `TEMP`, only while those columns are on. Core Temp's data is read locally, through shared memory.
+- **System changes:** it installs no driver or service and shows no administrator prompt. It injects no code into Explorer and reserves no taskbar space. Its only shell registration is for full-screen notifications. To hide while a full-screen app is in front, it also listens out-of-process for foreground-window changes, checking only which window is in front and on which monitor, not its contents.
+
+## Verify your download
+
+**Checksum.** Each release publishes a `.sha256` file next to its ZIP. For 1.8.0 it is `TaskVitals-1.8.0-windows-x86.zip.sha256`. Download both files into the same folder, then compare the two hashes in PowerShell. Letter case does not matter.
+
+```powershell
+(Get-FileHash .\TaskVitals-1.8.0-windows-x86.zip -Algorithm SHA256).Hash
+Get-Content .\TaskVitals-1.8.0-windows-x86.zip.sha256
+```
+
+**Unsigned.** `TaskVitals.exe` has no code-signing certificate, so Windows or your browser may warn about a downloaded copy. A matching checksum confirms that your ZIP matches the published file. You can also read the source and [build your own copy](#build-from-source).
+
+**How the download is built.** The release executable is an x86 build made locally with MinGW.org GCC 6.3.0 and tested on x64 Windows 11. It imports only Windows system DLLs. Interactive desktop checks and the resource observations apply to this build. The MSVC builds from [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) are separate from the download.
 
 ## FAQ
 
 ### Does TaskVitals work on Windows 11?
 
-The supplied portable x86 executable has been tested on x64 Windows 11. The taskbar view targets the primary horizontal taskbar. Mixed-DPI setups and secondary or vertical taskbars have not been validated. The widget hides while a full-screen app, such as a full-screen video, is in front on its monitor, and returns when the taskbar does. The Windows secure desktop may still cover it.
+The x86 build is tested on x64 Windows 11. The taskbar view targets the primary horizontal taskbar. Mixed-DPI setups and secondary or vertical taskbars have not been validated. The widget hides while a full-screen app, such as a full-screen video, is in front on its monitor, and it returns with the taskbar. The Windows secure desktop may still cover it.
 
 ### Is it a real taskbar extension? Will it cover my app icons?
 
-It is a topmost window positioned **over** the taskbar, not a shell extension. It does not inject code into Explorer or reserve shell space; it registers only for the shell's full-screen notifications. It reads shell-control bounds and selects a free gap; if no gap fits or those bounds cannot be read, it moves just above the taskbar. Placement has been checked on the test machine, including the wider GPU view, rather than every Windows configuration.
+It is a topmost window positioned **over** the taskbar, not a shell extension. It does not inject code into Explorer or reserve shell space, and its only shell registration is for full-screen notifications. It reads where the taskbar's controls are and picks a free gap. If no gap fits, or the positions can't be read, it moves just above the taskbar. Placement was checked on the test machine, including the wider GPU view, not on every Windows configuration.
 
-### Does it need Electron, Python, .NET or administrator access?
+### Does it need administrator access, Electron, Python or .NET?
 
-No. The app is compiled native C++ using Windows system libraries. PowerShell and CMake are development tools, not background runtime requirements. Extract the Windows ZIP and run the executable as your normal user.
+No. TaskVitals is compiled native C++ that uses Windows system libraries, and it runs as your normal user. PowerShell and CMake are development tools, not runtime requirements. The optional temperature column depends on Core Temp, a separate program that installs its own driver and needs administrator approval. TaskVitals itself never asks for it. Without Core Temp running, that column shows `--` and everything else still works.
 
-### How much RAM and CPU does it use?
+### How much memory and CPU does it use?
 
-Short observations on one Windows 11 machine recorded about 12.2 MiB working set with GPU off and 16.3 MiB with GPU on. These are measurements, not minimum requirements or fixed limits. See [Small by design](#small-by-design) and the [raw reports](docs/PERFORMANCE.md) for CPU results, private memory and limitations.
+In short observations on one Windows 11 machine, it used about 13.2 MiB of working set with the optional columns off and about 17 MiB with both the speed limit and temperature columns on. The temperature column also needs Core Temp running, a separate process observed at about 26 MiB on the same machine. With GPU on, version 1.7.0 used about 16.3 MiB. These are measurements, not minimum requirements or fixed limits. See [Resource use](#resource-use).
 
-### How do I enable GPU monitoring? Does it run while disabled?
+### How do I turn on GPU monitoring? Does it run while it is off?
 
-Right-click the visible text and check **Show GPU (optional)**. It is off by default. No GPU counters are sampled while disabled, and a fresh GPU-off process does not load PDH for GPU monitoring. Disabling GPU closes its query and releases its buffer and library reference; Windows may retain other caches. Details are in [Optional GPU](#optional-gpu).
+Right-click the visible text and check **Show GPU (optional)**. It is off by default. While it is off, no GPU counters are sampled, and a fresh process with both GPU and the speed limit off does not load PDH (the speed-limit column uses PDH too). Turning GPU off closes its query and releases its buffer and library reference, though Windows may keep other caches. See [GPU usage](#gpu-usage).
 
-### Why does CPU or GPU show `--`, or differ from Task Manager?
+### Why doesn't TaskVitals read the CPU temperature itself?
 
-CPU needs two valid samples; GPU needs available Windows performance counters and an initial sampling interval. Unsupported drivers or invalid samples also show `--`. CPU is averaged between samples, and GPU shows the busiest physical engine across all GPUs. Different averaging and aggregation can produce different results from Task Manager.
+Windows does not give ordinary programs the CPU temperature. Reading the sensors needs a kernel driver and administrator rights. TaskVitals installs no driver, so instead it shows what Core Temp already publishes, if you choose to run Core Temp. See [CPU temperature](#cpu-temperature).
+
+### Does a low LIM value mean my CPU is overheating?
+
+Not necessarily. `LIM` is not a temperature. A value below 100% means something is holding the processor below its base performance: Windows power policy, the power budget, overheating or another hardware issue. The counter does not say which, and TaskVitals gives no overheating warnings.
+
+### Why does a column show `--`, or differ from Task Manager?
+
+- **CPU** needs two valid samples.
+- **GPU** needs Windows GPU counters, which some drivers do not provide, and one interval to warm up.
+- **LIM** needs the Windows performance-limit counter. It shows `--` while it waits for a sample or if the counter is unavailable.
+- **TEMP** needs Core Temp to be running and reporting a valid reading.
+
+CPU is averaged between samples, and GPU shows the busiest engine. Because the averaging and aggregation differ, the results can differ from Task Manager.
 
 ### Can I change the text, colors, position and refresh interval?
 
-Yes. Right-click the visible letters or numbers for three text sizes, color presets/custom colors, placement options, and 1/2/5/10-second refresh intervals. The default is 5 seconds. Hold Ctrl and drag the text for a preferred custom position; collision avoidance still applies.
+Yes. Right-click the visible letters or numbers for three text sizes, color presets and custom colors, placement options, and refresh intervals of 1, 2, 5 or 10 seconds. The default is 5 seconds. Hold Ctrl and drag the text for a custom position; collision avoidance still applies. See [Customize it](#customize-it).
 
 ### Does TaskVitals send telemetry or require an account?
 
-The app has no telemetry, account system or automatic update checker. There is no app-level network request code. Downloads and source are hosted on GitHub; updating means downloading a newer release.
+No. It has no telemetry, account system, automatic update checker or app-level network request code. The temperature column reads Core Temp's data locally. Downloads and source are hosted on GitHub, and to update you download a newer release. See [Privacy](#privacy-what-taskvitals-touches).
 
 ### Can it start automatically with Windows? How do I quit?
 
-Check **Start with Windows** in the right-click menu; it is off by default and applies only to your user account. Windows Settings can disable that startup entry independently. Use **Exit** in the same menu to quit. There is no tray icon or taskbar button, so aim at the visible widget text to open its menu.
+Check **Start with Windows** in the right-click menu. It is off by default and applies only to your user account, and Windows Settings can turn the startup entry off separately. If you move the folder, the menu shows **Start with Windows** unchecked, because the saved entry still points to the old path. Check it once from the new location to register the new path. To quit, choose **Exit** in the same menu.
 
 ### Why might Windows warn about the download?
 
-The executable is unsigned. Windows may show a warning for a downloaded copy. The release includes SHA-256 checksums, and the source and [build instructions](docs/BUILDING.md) are available for inspection or building your own copy.
+The executable is unsigned. You can compare the ZIP with its published SHA-256 checksum, read the source, or build your own copy. See [Verify your download](#verify-your-download).
 
 ### How is it different from TrafficMonitor or a full hardware monitor?
 
-TaskVitals focuses on a small CPU/RAM percentage display, optional GPU usage and a portable native executable. It does not currently include history graphs, network speed, disk activity or VRAM monitoring, and it reads CPU temperature only from Core Temp. Choose it when that focused feature set fits what you need; no claim is made that it uses fewer resources than other tools.
+TaskVitals is deliberately narrow: a few percentages on the taskbar, optional GPU, speed-limit and temperature columns, and one portable native executable. It has no history graphs, network speed, disk activity or VRAM monitoring, and no sensor driver of its own. CPU temperature comes only from Core Temp, when you run it. If you need broad sensor coverage, a dedicated hardware monitor is a better fit. TaskVitals makes no claim to use fewer resources than other tools.
 
-## Build and test
+## Remove
+
+Uncheck **Start with Windows**, choose **Exit**, then delete the folder. Preferences are stored under `HKEY_CURRENT_USER\Software\TaskVitals`; delete that key too for a clean removal. If the executable is already gone but startup was on, remove only the `TaskVitals` value under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, not the `Run` key itself. Core Temp is a separate program, so uninstall it separately if you no longer need it. See [Settings and removal](docs/SETTINGS.md).
+
+## Build from source
 
 With Visual Studio C++ Build Tools, the Windows SDK and CMake 3.20 or newer:
 
@@ -152,14 +239,18 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The supplied download was built and tested locally with MinGW. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) also built, self-tested and packaged MSVC x86 and x64 successfully. Interactive desktop checks and resource measurements apply to the supplied MinGW x86 build; CI does not validate the taskbar UI on every Windows configuration.
+For x86, use `-A Win32` in a separate build directory. With MinGW `g++` and `windres` on `PATH`, `.\build-mingw.ps1` builds `release\TaskVitals.exe`. The release download is built that way.
 
-[Build instructions](docs/BUILDING.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+CTest runs the built-in self-test (`TaskVitals.exe --self-test`), which opens no window and exits with 0 on success. It covers CPU arithmetic, GPU aggregation, taskbar gap selection and Core Temp parsing (Celsius, Fahrenheit, distance to TjMax and invalid core counts), plus a live read of CPU and memory. The interactive scripts in `tests/` need a real desktop session; see [Testing](docs/TESTING.md).
 
-## Remove
+[Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) builds MSVC x86 and x64, runs the self-test and packages a ZIP on every push and pull request. CI does not test the taskbar UI.
 
-Uncheck **Start with Windows**, exit, then delete the folder. Preferences live under `HKEY_CURRENT_USER\Software\TaskVitals`. See [settings and removal](docs/SETTINGS.md) for the exact registry entries.
+[Building](docs/BUILDING.md) · [Testing](docs/TESTING.md) · [Settings](docs/SETTINGS.md) · [Performance](docs/PERFORMANCE.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
-## License
+## License and notices
 
-[MIT](LICENSE). Contributions and small, focused improvements are welcome.
+TaskVitals is released under the [MIT License](LICENSE). The portable `TaskVitals.exe` statically links small parts of the MinGW.org runtime and the GCC runtime libraries. [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) contains the MinGW.org runtime license notice and an informational note on the GCC Runtime Library Exception. `LICENSE` and `THIRD-PARTY-NOTICES.txt` are both included in the release ZIP. TaskVitals does not include or redistribute Core Temp.
+
+Contributions and small, focused improvements are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+**Trademarks.** Windows and Task Manager are trademarks of Microsoft. Core Temp is a product of ALCPU. TrafficMonitor and the other names mentioned here belong to their respective owners. TaskVitals is an independent project and is not affiliated with or endorsed by any of them.

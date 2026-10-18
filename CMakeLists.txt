@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(TaskVitals VERSION 1.7.0 LANGUAGES CXX RC)
+project(TaskVitals VERSION 1.8.0 LANGUAGES CXX RC)
 if(NOT WIN32)
   message(FATAL_ERROR "TaskVitals requires Windows")
 endif()

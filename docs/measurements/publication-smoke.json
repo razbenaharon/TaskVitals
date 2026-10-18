@@ -10,11 +10,11 @@
   "positioning": "passed",
   "sizeAndPositionPersistence": "passed",
   "colorPresetsAndPersistence": "passed",
-  "workingSetMiB": 12.46,
-  "privateMemoryMiB": 2.77,
-  "cpuMillisecondsOver12Seconds": 15.62,
-  "gdiBefore": 14,
-  "gdiAfter": 14,
-  "userBefore": 7,
-  "userAfter": 7
+  "workingSetMiB": 13.54,
+  "privateMemoryMiB": 2.98,
+  "cpuMillisecondsOver12Seconds": 0.0,
+  "gdiBefore": 17,
+  "gdiAfter": 17,
+  "userBefore": 9,
+  "userAfter": 9
 }

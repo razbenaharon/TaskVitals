@@ -52,7 +52,7 @@ With the widget running, use `./tests/placement.ps1` on an interactive desktop. 
 
 ## Optional CPU speed limit and temperature
 
-Close the widget and run `./tests/thermal.ps1`. It checks that both options default to off, that PDH is absent while the speed limit is off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop image under `build/verification`. The built-in self-test checks Core Temp parsing for Celsius, Fahrenheit, distance to TjMax and invalid core counts without Core Temp installed.
+Close the widget and run `./tests/thermal.ps1`. It checks that both options default to off, that PDH is absent while the speed limit is off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop image under `build/verification`. The built-in self-test checks Core Temp parsing for Celsius, Fahrenheit, distance to TjMax and invalid core counts without Core Temp installed. For a live check, run Core Temp (1.21 or later), enable both columns, and compare `TEMP` with Core Temp's hottest core within one refresh interval; closing Core Temp should show `--` at the next sample. The script reports whether Core Temp was running.
 
 ## Optional GPU
 

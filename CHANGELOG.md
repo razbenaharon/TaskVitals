@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-10-18
 
-- Added an optional CPU speed-limit column (`LIM`), off by default, from the Windows `% Performance Limit` counter; PDH loads only while it is enabled.
-- Added an optional CPU temperature column (`TEMP`), off by default, read from Core Temp's shared memory; no driver or administrator access in TaskVitals itself.
+- Added an optional CPU speed-limit column (`LIM`), off by default, from the Windows `% Performance Limit` counter: the performance the processor guarantees as a share of its base performance, lowered by power policy, power budget or heat. PDH loads only while it is enabled.
+- Added an optional CPU temperature column (`TEMP`), off by default, showing the hottest core from Core Temp's shared memory; no driver or administrator access in TaskVitals itself. Checked live with Core Temp 1.21.
+- Added `THIRD-PARTY-NOTICES.txt` to the repository and the release ZIP for the statically linked MinGW.org runtime, with an informational note on the GCC runtime libraries.
+- Rewrote the README; documented Core Temp's separate license, a temperature disclaimer and 1.8.0 resource observations.
 - Generalized the column layout so GPU, speed limit and temperature can be combined in both views.
 - Added Core Temp parsing self-tests (Celsius, Fahrenheit, distance to TjMax, invalid counts) and `tests/thermal.ps1`.
 - Added an application icon.

@@ -4,6 +4,27 @@ Reference measurements were collected on Windows 11 Pro 10.0.26300 x64 on 2026-1
 
 The one-minute table below describes version 1.4.1, before the color options added in 1.5.0. The color feature adds stored RGB values and user-triggered repainting, without changing the sampling timer. The Windows color-picker library is loaded on request and its reference is released after closing; it is not a startup import.
 
+## Version 1.8.0 CPU speed limit and temperature
+
+Sequential 30-second observations on the same machine, Normal size, Right position, 5-second refresh, GPU off. Core Temp 1.21 was running throughout, so the temperature column was reading live data.
+
+| Metric | Optional columns off (default) | Temperature only | Speed limit and temperature |
+| --- | ---: | ---: | ---: |
+| Duration | 30.06 s | 30.10 s | 30.08 s |
+| Working set | 13.20–13.25 MiB | 13.22–13.28 MiB | 16.93–16.98 MiB |
+| Private memory | 2.54–2.69 MiB | 2.50–2.68 MiB | 6.06–6.21 MiB |
+| CPU time | 0.00 ms | 0.00 ms | 15.63 ms |
+| CPU, whole machine | below reported resolution | below reported resolution | 0.0043% |
+| PDH loaded | no | no | yes |
+| GDI / USER | 16 / 9 | 16 / 9 | 16 / 9 |
+| Handles start/end | 187/187 | 187/187 | 197/197 |
+
+Raw reports: [off](measurements/thermal-off-1.8.0.json), [temperature only](measurements/temperature-only-1.8.0.json), [speed limit and temperature](measurements/thermal-on-1.8.0.json).
+
+Reading Core Temp's shared memory adds no measurable memory or CPU: TaskVitals copies 2,686 bytes (about 2.6 KiB) and closes the block once per sample. The extra ~3.7 MiB with both columns on comes from the speed-limit column loading PDH, the same library GPU uses. Core Temp itself is a separate process with its own driver and was observed at about 26 MiB working set on this machine; that cost belongs to Core Temp, not TaskVitals, and applies only if you choose to run it.
+
+An earlier off-phase run on the same build recorded 500 ms of CPU time over 30 seconds. It did not repeat in the run above or in the temperature-only run, and is attributed to a one-off desktop event (such as a taskbar layout re-read); it is reported here rather than discarded. These remain short, uncontrolled desktop observations, not fixed limits.
+
 ## Version 1.7.0 optional GPU
 
 Sequential observations in the same process used Normal size, Right position and a 5-second refresh interval. The GPU-on phase followed a warm-up and the live placement check. These are short desktop observations, not a controlled benchmark or fixed resource limits.

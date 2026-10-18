@@ -315,7 +315,7 @@ void updateTooltipRect() {
 void buildTooltip() {
     wchar_t cpu[64],memory[160],gpuText[96]=L"",limitText[128]=L"",temperatureText[96]=L"";
     if(s.limitEnabled) {
-        if(s.haveLimit) wsprintfW(limitText,L"CPU speed limit: %d%% of maximum (lower when slowed by heat or power saving)\r\n",int(s.limitPercent+0.5));
+        if(s.haveLimit) wsprintfW(limitText,L"CPU speed limit: %d%% of base performance guaranteed (lowered by power policy, power budget or heat)\r\n",int(s.limitPercent+0.5));
         else lstrcpyW(limitText,L"CPU speed limit: waiting for samples or counter unavailable\r\n");
     }
     if(s.temperatureEnabled) {

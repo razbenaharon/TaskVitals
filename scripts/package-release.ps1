@@ -36,6 +36,7 @@ try {
     Copy-Item -LiteralPath $Executable -Destination (Join-Path $staging 'TaskVitals.exe')
     Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination $staging
     Copy-Item -LiteralPath (Join-Path $projectRoot 'CHANGELOG.md') -Destination $staging
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'THIRD-PARTY-NOTICES.txt') -Destination $staging
     @"
 TaskVitals $version - Windows $architecture portable build
 
@@ -47,6 +48,17 @@ Hover over the text for CPU/RAM details and uptime.
 Use Show GPU (optional) to enable GPU usage; it is off by default.
 GPU uses the existing refresh interval and adds a third column.
 Unavailable GPU counters show --. Disabling GPU releases its query.
+Use Show CPU speed limit (optional) to see the performance Windows
+guarantees, as a share of the processor's base performance; power policy,
+power budget or heat lower it. It is off by default.
+Use Show CPU temperature (needs Core Temp) to show the hottest core while
+the separate Core Temp utility is running; it is off by default.
+TaskVitals installs no driver and only reads what Core Temp publishes.
+Core Temp is an independent product by ALCPU under its own license (free
+for personal use; businesses need its commercial license). Download
+version 1.21 or later only from https://www.alcpu.com/CoreTemp/
+Temperatures are informational and up to one refresh interval old.
+TaskVitals gives no overheating warnings; do not rely on it for safety.
 Use Text size for Small, Normal or Large.
 Use Colors for five presets or custom label, bar and percentage colors.
 Use Taskbar position for presets and small adjustments.
@@ -58,7 +70,8 @@ Start with Windows is optional and off by default.
 The taskbar strip uses free gaps on the primary horizontal taskbar.
 If no gap fits or controls cannot be read, it moves just above the taskbar.
 It does not reserve shell space.
-The executable is unsigned. Read LICENSE for the MIT license.
+The executable is unsigned. Read LICENSE for the MIT license and
+THIRD-PARTY-NOTICES.txt for the statically linked runtime libraries.
 
 Source, documentation and issues:
 https://github.com/razbenaharon/TaskVitals
