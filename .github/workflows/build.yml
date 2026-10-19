@@ -38,3 +38,32 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 14
+  # The download is a GCC x86 build; check that toolchain family too. The
+  # release's MinGW.org GCC 6.3.0 is not available here, so this uses
+  # MinGW-w64 GCC from the runner's preinstalled MSYS2.
+  mingw:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install MinGW-w64 x86
+        shell: pwsh
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc 'pacman -Sy --noconfirm --needed mingw-w64-i686-gcc'
+          if ($LASTEXITCODE -ne 0) { throw 'MinGW-w64 install failed.' }
+          'C:\msys64\mingw32\bin' | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Build
+        shell: pwsh
+        run: |
+          g++ --version
+          ./build-mingw.ps1
+      - name: Self-test and package
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -Executable ./release/TaskVitals.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: TaskVitals-windows-x86-mingw
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

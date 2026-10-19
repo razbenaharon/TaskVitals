@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Recovered after Explorer restarts: the widget re-attaches to the new taskbar, re-reads its layout and re-registers for full-screen notifications.
+- Added version details (product, version, description, copyright) to the executable's file properties; packaging refuses a mismatch with the project version.
+- Wrote `.sha256` files as one LF-terminated line so `sha256sum -c` also works outside Windows.
+- Added a MinGW-w64 GCC x86 build, self-test and package to Windows CI alongside MSVC.
+
 ## 1.8.0 — 2026-10-18
 
 - Added an optional CPU speed-limit column (`LIM`), off by default, from the Windows `% Performance Limit` counter: the performance the processor guarantees as a share of its base performance, lowered by power policy, power budget or heat. PDH loads only while it is enabled.

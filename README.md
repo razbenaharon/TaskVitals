@@ -164,7 +164,7 @@ Get-Content .\TaskVitals-1.8.0-windows-x86.zip.sha256
 
 **Unsigned.** `TaskVitals.exe` has no code-signing certificate, so Windows or your browser may warn about a downloaded copy. A matching checksum confirms that your ZIP matches the published file. You can also read the source and [build your own copy](#build-from-source).
 
-**How the download is built.** The release executable is an x86 build made locally with MinGW.org GCC 6.3.0 and tested on x64 Windows 11. It imports only Windows system DLLs. Interactive desktop checks and the resource observations apply to this build. The MSVC builds from [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) are separate from the download.
+**How the download is built.** The release executable is an x86 build made locally with MinGW.org GCC 6.3.0 and tested on x64 Windows 11. It imports only Windows system DLLs. Interactive desktop checks and the resource observations apply to this build. The MSVC and MinGW-w64 builds from [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) are separate from the download.
 
 ## FAQ
 

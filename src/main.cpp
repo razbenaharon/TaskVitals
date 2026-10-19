@@ -15,6 +15,7 @@
 #include <shellapi.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <wchar.h>
 #include <string.h>
 #include "gpu.h"
@@ -46,7 +47,7 @@ struct State {
     HWND window, tooltip; HFONT regular, number, labelFont; int dpi;
     bool ready, haveCpu, haveMemory, compact, dragging, gpuEnabled, haveGpu;
     bool limitEnabled, haveLimit, temperatureEnabled, haveTemperature;
-    bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook;
+    bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook; UINT taskbarCreated;
     double gpuUsage, limitPercent, temperature;
     CpuTimes previous; double cpu; MEMORYSTATUSEX memory;
     int x, y;
@@ -404,6 +405,25 @@ void updateFullscreen() {
 }
 // Focus moving to another monitor need not change the shell's state.
 void CALLBACK foregroundChanged(HWINEVENTHOOK,DWORD,HWND,LONG,LONG,DWORD,DWORD) { updateFullscreen(); }
+// Register for full-screen notifications only. Without ABM_SETPOS the
+// widget reserves no screen space.
+void registerShell() {
+    APPBARDATA bar={}; bar.cbSize=sizeof(bar); bar.hWnd=s.window; bar.uCallbackMessage=kAppBarMessage;
+    // A registration with an earlier Explorer is gone; removing is then a no-op.
+    if(s.appBar) SHAppBarMessage(ABM_REMOVE,&bar);
+    s.appBar=SHAppBarMessage(ABM_NEW,&bar)!=0;
+    // The shell only notifies on changes; ask once in case a full-screen app is
+    // already running. Older SDK headers lack this export, so resolve it.
+    typedef HRESULT (WINAPI *NotificationState)(int*);
+    NotificationState notificationState=reinterpret_cast<NotificationState>(
+        GetProcAddress(GetModuleHandleW(L"shell32.dll"),"SHQueryUserNotificationState"));
+    int shellState=0; // 2: busy/full-screen, 3: Direct3D full-screen
+    s.shellFullscreen=s.appBar && notificationState && SUCCEEDED(notificationState(&shellState)) &&
+        (shellState==2 || shellState==3);
+    if(s.appBar && !s.foregroundHook) s.foregroundHook=SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,0,
+        foregroundChanged,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
+    updateFullscreen();
+}
 void rememberTaskbarOffset(int delta=0) {
     RECT bar,r; HWND taskbar=FindWindowW(L"Shell_TrayWnd",0);
     if(taskbar && GetWindowRect(taskbar,&bar) && GetWindowRect(s.window,&r)) {
@@ -438,6 +458,18 @@ void setMode(bool compact) {
     if(!s.hidden) ShowWindow(s.window,SW_SHOWNOACTIVATE);
     InvalidateRect(s.window,0,FALSE);
     save();
+}
+// A restarted Explorer has a new taskbar; its owner link, layout hook and the
+// full-screen registration belonged to the old one.
+void taskbarRestarted() {
+    if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
+    layout.bar=0; layout.dirty=true;
+    registerShell();
+    HWND bar=FindWindowW(L"Shell_TrayWnd",0);
+    if(!s.compact || !bar) return;
+    SetWindowLongPtrW(s.window,GWLP_HWNDPARENT,reinterpret_cast<LONG_PTR>(bar));
+    positionTaskbar();
+    if(!s.hidden) SetWindowPos(s.window,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
 }
 HFONT font(int size,int weight) { return CreateFontW(-px(size),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI"); }
 bool setTextScale(UINT scale) {
@@ -551,6 +583,7 @@ void menu(POINT point) {
     DestroyMenu(m); if(command) SendMessageW(s.window,WM_COMMAND,command,0);
 }
 LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
+    if(s.taskbarCreated && message==s.taskbarCreated) { taskbarRestarted(); return 0; }
     switch(message) {
     case WM_PAINT: paint(); return 0;
     case WM_ERASEBKGND: return 1;
@@ -748,26 +781,13 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     WNDCLASSW wc={}; wc.lpfnWndProc=windowProc; wc.hInstance=instance; wc.lpszClassName=kClass;
     wc.hCursor=LoadCursorW(0,IDC_ARROW); wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(1));
     if(!RegisterClassW(&wc)) { CloseHandle(mutex); return 1; }
+    s.taskbarCreated=RegisterWindowMessageW(L"TaskbarCreated");
     RECT work; SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
     s.x=int(pref(L"X",DWORD(work.right-px(340)))); s.y=int(pref(L"Y",DWORD(work.top+px(24))));
     s.window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,kClass,L"TaskVitals",WS_POPUP,s.x,s.y,px(320),px(145),0,0,instance,0);
     if(!s.window) { CloseHandle(mutex); return 1; }
     createTooltip();
-    // Register for full-screen notifications only. Without ABM_SETPOS the
-    // widget reserves no screen space.
-    APPBARDATA bar={}; bar.cbSize=sizeof(bar); bar.hWnd=s.window; bar.uCallbackMessage=kAppBarMessage;
-    s.appBar=SHAppBarMessage(ABM_NEW,&bar)!=0;
-    // The shell only notifies on changes; ask once in case a full-screen app is
-    // already running. Older SDK headers lack this export, so resolve it.
-    typedef HRESULT (WINAPI *NotificationState)(int*);
-    NotificationState notificationState=reinterpret_cast<NotificationState>(
-        GetProcAddress(GetModuleHandleW(L"shell32.dll"),"SHQueryUserNotificationState"));
-    int shellState=0; // 2: busy/full-screen, 3: Direct3D full-screen
-    if(s.appBar && notificationState && SUCCEEDED(notificationState(&shellState)))
-        s.shellFullscreen=shellState==2 || shellState==3;
-    updateFullscreen();
-    if(s.appBar) s.foregroundHook=SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,0,
-        foregroundChanged,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
+    registerShell();
     setMode(pref(L"Taskbar",1)!=0);
     if(s.gpuEnabled) gpu.start();
     if(s.limitEnabled) limit.start();

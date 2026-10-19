@@ -13,7 +13,7 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\TaskVitals.exe
 ```
 
-Use `-A Win32` in a separate build directory for x86. The workflow builds and self-tests both architectures. [The initial Windows CI run](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) built, self-tested and packaged MSVC x86/x64 successfully. The downloadable x86 release and interactive GUI checks use the locally verified MinGW build.
+Use `-A Win32` in a separate build directory for x86. The workflow builds and self-tests both architectures, plus a MinGW-w64 GCC x86 build from the runner's MSYS2. [The initial Windows CI run](https://github.com/razbenaharon/TaskVitals/actions/runs/38930431512) built, self-tested and packaged MSVC x86/x64 successfully. The downloadable x86 release and interactive GUI checks use the locally verified MinGW build.
 
 Direct build from an x64 Native Tools Command Prompt:
 

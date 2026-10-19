@@ -23,6 +23,8 @@ $architecture = switch ($machine) {
     0x8664 { 'x64' }
     default { throw 'Only x86 and x64 release packaging is supported.' }
 }
+$embedded = (Get-Item -LiteralPath $Executable).VersionInfo.ProductVersion
+if ($embedded -ne $version) { throw "Executable version '$embedded' does not match project version $version; update src/TaskVitals.rc." }
 $check = Start-Process -FilePath $Executable -ArgumentList '--self-test' -WindowStyle Hidden -PassThru -Wait
 if ($check.ExitCode -ne 0) { throw "Sampling self-test failed: $($check.ExitCode)" }
 
@@ -83,7 +85,8 @@ Preferences: HKEY_CURRENT_USER\Software\TaskVitals
     $archive = Join-Path $OutputDirectory $fileName
     Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $archive -Force
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $fileName" | Set-Content -LiteralPath ($archive + '.sha256') -Encoding ascii
+    # A bare LF line keeps `sha256sum -c` working on Linux and macOS too.
+    [IO.File]::WriteAllText($archive + '.sha256', "$hash  $fileName`n", [Text.Encoding]::ASCII)
     Write-Output "Packaged $archive"
     Write-Output "SHA256 $hash"
 } finally {
