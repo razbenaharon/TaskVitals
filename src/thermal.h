@@ -25,11 +25,11 @@ struct LimitReader {
         if(!length || length+9>=MAX_PATH) return false;
         lstrcatW(path,L"\\pdh.dll"); library=LoadLibraryW(path);
         if(!library) return false;
-        open=reinterpret_cast<decltype(open)>(GetProcAddress(library,"PdhOpenQueryW"));
-        add=reinterpret_cast<decltype(add)>(GetProcAddress(library,"PdhAddEnglishCounterW"));
-        collect=reinterpret_cast<decltype(collect)>(GetProcAddress(library,"PdhCollectQueryData"));
-        value=reinterpret_cast<decltype(value)>(GetProcAddress(library,"PdhGetFormattedCounterValue"));
-        close=reinterpret_cast<decltype(close)>(GetProcAddress(library,"PdhCloseQuery"));
+        open=procAddress<decltype(open)>(library,"PdhOpenQueryW");
+        add=procAddress<decltype(add)>(library,"PdhAddEnglishCounterW");
+        collect=procAddress<decltype(collect)>(library,"PdhCollectQueryData");
+        value=procAddress<decltype(value)>(library,"PdhGetFormattedCounterValue");
+        close=procAddress<decltype(close)>(library,"PdhCloseQuery");
         if(!open || !add || !collect || !value || !close || open(0,0,&query)!=0 ||
            add(query,L"\\Processor Information(_Total)\\% Performance Limit",0,&counter)!=0) { stop(); return false; }
         return true;

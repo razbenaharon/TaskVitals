@@ -232,7 +232,7 @@ void chooseColor(COLORREF& value) {
     lstrcatW(path,L"\\comdlg32.dll");
     HMODULE library=LoadLibraryW(path);
     typedef BOOL (WINAPI *ColorDialog)(LPCHOOSECOLORW);
-    ColorDialog dialog=library?reinterpret_cast<ColorDialog>(GetProcAddress(library,"ChooseColorW")):0;
+    ColorDialog dialog=library?procAddress<ColorDialog>(library,"ChooseColorW"):0;
     if(!dialog) {
         if(library) FreeLibrary(library);
         MessageBoxW(s.window,L"Could not open the Windows color picker.",L"TaskVitals",MB_OK|MB_ICONERROR);
@@ -341,7 +341,7 @@ void buildTooltip() {
     // This callback runs only on the UI thread. Constant initialization avoids
     // pulling a C++ thread-safe-static runtime into this otherwise Win32-only app.
     static Tick64 ticks64=0;
-    if(!ticks64) ticks64=reinterpret_cast<Tick64>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"GetTickCount64"));
+    if(!ticks64) ticks64=procAddress<Tick64>(GetModuleHandleW(L"kernel32.dll"),"GetTickCount64");
     ULONGLONG minutes=(ticks64?ticks64():GetTickCount())/60000;
     wsprintfW(s.tooltipText,L"%s\r\n%s\r\n%s%s%sUptime: %u days, %u h %u min\r\nSampled: %02u:%02u:%02u | Refresh: %u s\r\nRight-click for options. Ctrl+drag to move.",
         cpu,memory,gpuText,limitText,temperatureText,UINT(minutes/1440),UINT((minutes/60)%24),UINT(minutes%60),UINT(s.sampledAt.wHour),UINT(s.sampledAt.wMinute),UINT(s.sampledAt.wSecond),s.refreshMs/1000);
@@ -415,8 +415,8 @@ void registerShell() {
     // The shell only notifies on changes; ask once in case a full-screen app is
     // already running. Older SDK headers lack this export, so resolve it.
     typedef HRESULT (WINAPI *NotificationState)(int*);
-    NotificationState notificationState=reinterpret_cast<NotificationState>(
-        GetProcAddress(GetModuleHandleW(L"shell32.dll"),"SHQueryUserNotificationState"));
+    NotificationState notificationState=
+        procAddress<NotificationState>(GetModuleHandleW(L"shell32.dll"),"SHQueryUserNotificationState");
     int shellState=0; // 2: busy/full-screen, 3: Direct3D full-screen
     s.shellFullscreen=s.appBar && notificationState && SUCCEEDED(notificationState(&shellState)) &&
         (shellState==2 || shellState==3);
@@ -754,7 +754,7 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     // Opt out before creating windows, retaining ordinary key/menu input.
     ImmDisableIME(GetCurrentThreadId());
     typedef BOOL (WINAPI *DpiAware)();
-    DpiAware dpiAware=reinterpret_cast<DpiAware>(GetProcAddress(GetModuleHandleW(L"user32.dll"),"SetProcessDPIAware"));
+    DpiAware dpiAware=procAddress<DpiAware>(GetModuleHandleW(L"user32.dll"),"SetProcessDPIAware");
     if(dpiAware) dpiAware();
     HDC screen=GetDC(0); s.dpi=GetDeviceCaps(screen,LOGPIXELSX); ReleaseDC(0,screen);
     HANDLE mutex=CreateMutexW(0,FALSE,L"Local\\TaskVitals.Personal.1");

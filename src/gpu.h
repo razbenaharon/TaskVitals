@@ -9,6 +9,12 @@ struct alignas(8) GpuPdhItem { wchar_t* name; GpuPdhValue formatted; };
 static_assert(offsetof(GpuPdhValue,value)==8 && sizeof(GpuPdhValue)==16,"PDH value ABI");
 static_assert(offsetof(GpuPdhItem,formatted)==8 && sizeof(GpuPdhItem)==24,"PDH item ABI");
 
+// GetProcAddress returns a generic function pointer. Converting through
+// void (*)() is the form GCC's -Wcast-function-type accepts.
+template<class T> inline T procAddress(HMODULE module,const char* name) {
+    return reinterpret_cast<T>(reinterpret_cast<void (*)()>(GetProcAddress(module,name)));
+}
+
 struct GpuEngine { wchar_t key[96]; double usage; };
 inline bool gpuEngineKey(const wchar_t* name,wchar_t* key) {
     const wchar_t* begin=wcsstr(name,L"_luid_");
@@ -57,11 +63,11 @@ struct GpuReader {
         if(!length || length+9>=MAX_PATH) return false;
         lstrcatW(path,L"\\pdh.dll"); library=LoadLibraryW(path);
         if(!library) return false;
-        open=reinterpret_cast<decltype(open)>(GetProcAddress(library,"PdhOpenQueryW"));
-        add=reinterpret_cast<decltype(add)>(GetProcAddress(library,"PdhAddEnglishCounterW"));
-        collect=reinterpret_cast<decltype(collect)>(GetProcAddress(library,"PdhCollectQueryData"));
-        array=reinterpret_cast<decltype(array)>(GetProcAddress(library,"PdhGetFormattedCounterArrayW"));
-        close=reinterpret_cast<decltype(close)>(GetProcAddress(library,"PdhCloseQuery"));
+        open=procAddress<decltype(open)>(library,"PdhOpenQueryW");
+        add=procAddress<decltype(add)>(library,"PdhAddEnglishCounterW");
+        collect=procAddress<decltype(collect)>(library,"PdhCollectQueryData");
+        array=procAddress<decltype(array)>(library,"PdhGetFormattedCounterArrayW");
+        close=procAddress<decltype(close)>(library,"PdhCloseQuery");
         if(!open || !add || !collect || !array || !close || open(0,0,&query)!=0 ||
            add(query,L"\\GPU Engine(*)\\Utilization Percentage",0,&counter)!=0) { stop(); return false; }
         primed=collect(query)==0;
