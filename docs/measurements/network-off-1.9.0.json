@@ -1,0 +1,18 @@
+{
+  "processId": 18840,
+  "durationSeconds": 30.08,
+  "cpuMilliseconds": 31.25,
+  "cpuPercentOfOneLogicalProcessor": 0.1039,
+  "cpuPercentOfWholeMachine": 0.0087,
+  "processCycles": 33232806,
+  "workingSetMiBMin": 13.27,
+  "workingSetMiBMax": 13.34,
+  "privateMiBMin": 2.53,
+  "privateMiBMax": 2.71,
+  "gdiBefore": 16,
+  "gdiAfter": 16,
+  "userBefore": 9,
+  "userAfter": 9,
+  "handlesBefore": 187,
+  "handlesAfter": 187
+}

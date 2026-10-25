@@ -4,6 +4,25 @@ Reference measurements were collected on Windows 11 Pro 10.0.26300 x64 on 2026-1
 
 The one-minute table below describes version 1.4.1, before the color options added in 1.5.0. The color feature adds stored RGB values and user-triggered repainting, without changing the sampling timer. The Windows color-picker library is loaded on request and its reference is released after closing; it is not a startup import.
 
+## Version 1.9.0 network traffic
+
+Sequential 30-second observations on the same machine on 2026-10-25, Normal size, Right position, 5-second refresh, with GPU, speed limit and temperature off.
+
+| Metric | Optional columns off (default) | Network traffic on |
+| --- | ---: | ---: |
+| Duration | 30.08 s | 30.09 s |
+| Working set | 13.27–13.34 MiB | 13.29–13.35 MiB |
+| Private memory | 2.53–2.71 MiB | 2.40–2.55 MiB |
+| CPU time | 31.25 ms | 15.63 ms |
+| CPU, whole machine | 0.0087% | 0.0043% |
+| IP Helper loaded | no | yes |
+| GDI / USER | 16 / 9 | 16 / 9 |
+| Handles start/end | 187/187 | 189/189 |
+
+Raw reports: [off](measurements/network-off-1.9.0.json), [network on](measurements/network-on-1.9.0.json).
+
+The network columns read one adapter table per sample through IP Helper and keep at most 32 adapter counters (under 1 KiB). They add no measurable memory or CPU in these runs. The CPU times are one or two ticks of the 15.6 ms process-time clock, so the off/on difference is noise rather than a saving. These remain short, uncontrolled desktop observations, not fixed limits.
+
 ## Version 1.8.0 CPU speed limit and temperature
 
 Sequential 30-second observations on the same machine, Normal size, Right position, 5-second refresh, GPU off. Core Temp 1.21 was running throughout, so the temperature column was reading live data.

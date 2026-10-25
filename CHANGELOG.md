@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 — 2026-10-25
 
 - Added optional network traffic columns (`DOWN` and `UP`), off by default: bytes per second received and sent by the physical adapters, from the counters Windows already keeps. TaskVitals sends nothing and runs no speed test. IP Helper loads only while the columns are on. The hover details also show the connected adapter's link rate to the router, labeled as not the internet speed.
 - Added network self-tests (adapter filtering, counter resets, link rate, rate formatting) and `tests/network.ps1`.

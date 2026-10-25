@@ -163,7 +163,7 @@ try {
     else { New-ItemProperty $run TaskVitals -Value $oldRun -PropertyType String -Force | Out-Null }
     if (-not $hadPrefs) { Remove-Item $prefs -ErrorAction SilentlyContinue }
     else {
-        foreach ($name in @('X','Y','Taskbar','RefreshMs','TextScale','Anchor','TaskbarOffset','CpuColor','RamColor','ValueColor','GpuEnabled','LimitEnabled','TemperatureEnabled')) {
+        foreach ($name in @('X','Y','Taskbar','RefreshMs','TextScale','Anchor','TaskbarOffset','CpuColor','RamColor','ValueColor','GpuEnabled','LimitEnabled','TemperatureEnabled','NetworkEnabled')) {
             if ($null -ne $prefSnapshot.$name) { New-ItemProperty $prefs $name -Value $prefSnapshot.$name -PropertyType DWord -Force | Out-Null }
             else { Remove-ItemProperty $prefs $name -ErrorAction SilentlyContinue }
         }

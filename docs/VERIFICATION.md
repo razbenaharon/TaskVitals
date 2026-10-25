@@ -1,11 +1,16 @@
 # Release verification
 
-Version 1.8.0, prepared on 2026-10-18 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.8.0).
+Version 1.9.0, prepared on 2026-10-25 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.9.0).
 
-Version 1.8.0 adds the optional CPU speed-limit and CPU temperature columns. The final build was checked with the built-in self-test, the GUI smoke suite, the GPU and thermal toggle/restart tests and the live placement test. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
+Version 1.9.0 adds the optional network traffic columns and recovery after Explorer restarts. The final build was checked with the built-in self-test, the GUI smoke suite, the GPU, thermal and network toggle/restart tests and the live placement test with the network columns on. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
 
 ## Current checks
 
+- Network traffic is disabled when its preference is missing; IP Helper is absent from a fresh process with the columns off and present with them on.
+- Enabling network traffic adds two columns, survives restart and disables back to the previous width; repeated toggles release IP Helper on this test machine.
+- The adapter-table layout was checked against Windows on the test machine: the byte counters read by offset matched `Get-NetAdapterStatistics` for the Wi-Fi adapter, the VPN adapter was excluded, and the link rate matched `Get-NetAdapter` (Wi-Fi rates vary from moment to moment).
+- Network self-tests cover adapter filtering (physical, filter, loopback), counter resets, adapters that appear or disappear, the link rate (connected adapters only, unknown speeds ignored) and rate formatting.
+- Independent live placement checks covered a four-column strip (CPU, RAM, DOWN, UP) at all three sizes with no app/system button overlap.
 - Speed limit and temperature are disabled when their preferences are missing; PDH is absent from a fresh process with GPU and the speed limit off.
 - Each new column expands the strip, survives restart, and disables back; repeated speed-limit toggles release PDH on this test machine.
 - The temperature column was checked live against Core Temp 1.21 on the test machine: it read all 10 cores in Celsius, the values read directly from the shared memory agreed with Core Temp, and the column followed Core Temp's hottest core. Displayed values can differ from Core Temp's own window by sampling time, because Core Temp updates every second and TaskVitals at its refresh interval. With Core Temp not running, it showed `--`.
@@ -34,12 +39,12 @@ Version 1.8.0 adds the optional CPU speed-limit and CPU temperature columns. The
 
 - File: TaskVitals.exe
 - Architecture: x86
-- Size: 90,112 bytes
-- SHA-256: DF31710B79A5D97417BADC1847294D0A14B39297DB1B7652BCA21BBA2F5F00B0
+- Size: 100,352 bytes
+- SHA-256: 07934FB62FB22C8802DAFC8B59CB1FEB489D4AF152D4A44C61DBD7670F34FEF7
 - Signature: unsigned
 
-The current [smoke report](measurements/publication-smoke.json) recorded 13.54 MiB working set and 2.98 MiB private memory during its 12-second desktop observation; GDI stayed at 17 and USER resources at 9. Process CPU time was 0 ms at the reported resolution. Separate speed-limit/temperature and GPU observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).
+The current [smoke report](measurements/publication-smoke.json) recorded 13.65 MiB working set and 2.98 MiB private memory during its 12-second desktop observation; GDI stayed at 17 and USER resources at 9. Process CPU time was 15.62 ms, one tick of the process-time clock. Separate network, speed-limit/temperature and GPU observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).
 
-The longer resource reference in [PERFORMANCE.md](PERFORMANCE.md) describes 1.4.1 before the color option. The current short observation is linked there separately; no controlled long-duration comparison has been made for 1.8.0. Colors are cached RGB values; the custom picker is event-driven and its library is released after the dialog closes.
+The longer resource reference in [PERFORMANCE.md](PERFORMANCE.md) describes 1.4.1 before the color option. The current short observation is linked there separately; no controlled long-duration comparison has been made for 1.9.0. Colors are cached RGB values; the custom picker is event-driven and its library is released after the dialog closes.
 
-The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) builds, self-tests and packages MSVC x86 and x64 for each push, including the release commit. GUI and performance checks apply to the supplied MinGW x86 portable binary. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
+The final process is left running with Default colors, the transparent taskbar view and the existing refresh interval. [Windows CI](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml) builds, self-tests and packages MSVC x86 and x64 and a MinGW-w64 x86 build for each push, including the release commit. GUI and performance checks apply to the supplied MinGW x86 portable binary. Mixed-DPI, secondary/vertical taskbars, fresh sign-in startup and long-duration resource behavior remain unvalidated.
