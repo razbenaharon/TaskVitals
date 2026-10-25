@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added optional network traffic columns (`DOWN` and `UP`), off by default: bytes per second received and sent by the physical adapters, from the counters Windows already keeps. TaskVitals sends nothing and runs no speed test. IP Helper loads only while the columns are on. The hover details also show the connected adapter's link rate to the router, labeled as not the internet speed.
+- Added network self-tests (adapter filtering, counter resets, link rate, rate formatting) and `tests/network.ps1`.
 - Recovered after Explorer restarts: the widget re-attaches to the new taskbar, re-reads its layout and re-registers for full-screen notifications.
 - Added version details (product, version, description, copyright) to the executable's file properties; packaging refuses a mismatch with the project version.
 - Wrote `.sha256` files as one LF-terminated line so `sha256sum -c` also works outside Windows.

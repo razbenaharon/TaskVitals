@@ -54,6 +54,10 @@ With the widget running, use `./tests/placement.ps1` on an interactive desktop. 
 
 Close the widget and run `./tests/thermal.ps1`. It checks that both options default to off, that PDH is absent while the speed limit is off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop image under `build/verification`. The built-in self-test checks Core Temp parsing for Celsius, Fahrenheit, distance to TjMax and invalid core counts without Core Temp installed. For a live check, run Core Temp (1.21 or later), enable both columns, and compare `TEMP` with Core Temp's hottest core within one refresh interval; closing Core Temp should show `--` at the next sample. The script reports whether Core Temp was running.
 
+## Optional network traffic
+
+Close the widget and run `./tests/network.ps1`. It checks the missing-preference default, that enabling loads IP Helper, that the strip grows by two columns, persistence over a restart, and that disabling restores the strip size and releases IP Helper (when no other system library had already loaded it). It saves taskbar and desktop images under `build/verification`. The built-in self-test checks adapter filtering on a synthetic adapter table, counter resets, adapters that appear or disappear, the link rate (connected adapters only, unknown speeds ignored) and rate formatting. Compare the hover link rate with `Get-NetAdapter`; Wi-Fi rates change from moment to moment. For a live check, start a large download and compare `DOWN` with Task Manager's Wi-Fi or Ethernet receive rate; Task Manager shows bits per second, so divide it by 8.
+
 ## Optional GPU
 
 Close the widget and run `./tests/gpu.ps1`. It checks the missing-preference default, PDH absence while off, expansion, persistence, disable/unload and repeated toggles. It saves a desktop GPU image under `build/verification`. Counter availability depends on the driver. The built-in self-test checks per-engine aggregation, adapter separation, invalid samples and the 100% cap without loading PDH.

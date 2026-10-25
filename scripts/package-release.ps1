@@ -61,6 +61,9 @@ for personal use; businesses need its commercial license). Download
 version 1.21 or later only from https://www.alcpu.com/CoreTemp/
 Temperatures are informational and up to one refresh interval old.
 TaskVitals gives no overheating warnings; do not rely on it for safety.
+Use Show network traffic (optional) to add DOWN and UP: bytes per second
+received and sent by the physical adapters (K = 1,000 bytes/s). It reads
+the counters Windows keeps, sends nothing and is off by default.
 Use Text size for Small, Normal or Large.
 Use Colors for five presets or custom label, bar and percentage colors.
 Use Taskbar position for presets and small adjustments.

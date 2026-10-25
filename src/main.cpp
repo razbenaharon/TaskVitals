@@ -20,10 +20,12 @@
 #include <string.h>
 #include "gpu.h"
 #include "thermal.h"
+#include "network.h"
 
 namespace {
 GpuReader gpu = {};
 LimitReader limit = {};
+NetworkReader network = {};
 const wchar_t* kClass = L"TaskVitals.Window.1";
 const wchar_t* kPrefs = L"Software\\TaskVitals";
 const wchar_t* kRun = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -41,14 +43,14 @@ enum { Startup=102, Quit, TaskbarMode, Refresh1=201, Refresh2, Refresh5, Refresh
        TextSmall=301, TextNormal, TextLarge, PositionRight=401, PositionCenter,
        PositionLeft, PositionCustom, MoveLeft, MoveRight,
        ColorsDefault=501, ColorsWhite, ColorsOcean, ColorsWarm, ColorsDark,
-       PickCpuColor, PickRamColor, PickValueColor, ToggleGpu=601, ToggleLimit, ToggleTemperature };
+       PickCpuColor, PickRamColor, PickValueColor, ToggleGpu=601, ToggleLimit, ToggleTemperature, ToggleNetwork };
 struct CpuTimes { uint64_t idle, kernel, user; };
 struct State {
     HWND window, tooltip; HFONT regular, number, labelFont; int dpi;
     bool ready, haveCpu, haveMemory, compact, dragging, gpuEnabled, haveGpu;
-    bool limitEnabled, haveLimit, temperatureEnabled, haveTemperature;
+    bool limitEnabled, haveLimit, temperatureEnabled, haveTemperature, networkEnabled, haveNetwork;
     bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook; UINT taskbarCreated;
-    double gpuUsage, limitPercent, temperature;
+    double gpuUsage, limitPercent, temperature, download, upload;
     CpuTimes previous; double cpu; MEMORYSTATUSEX memory;
     int x, y;
     UINT refreshMs;
@@ -176,18 +178,46 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
 }
 
 int px(int n) { return MulDiv(n, s.dpi*int(s.textScale), 9600); }
-// CPU and RAM are always shown; each optional metric adds one column.
-struct Column { const wchar_t* label; bool valid, degrees; double value; COLORREF accent; };
+// CPU and RAM are always shown; each optional metric adds one column, and
+// network traffic adds two (download and upload).
+enum Unit { Percent, Degrees, Rate };
+struct Column { const wchar_t* label; bool valid; Unit unit; double value; COLORREF accent; };
+const int kMaxColumns=7;
 int columns(Column* list) {
     int n=0;
-    list[n++]={L"CPU",s.haveCpu,false,s.cpu,s.colors.cpu};
-    list[n++]={L"RAM",s.haveMemory,false,double(s.memory.dwMemoryLoad),s.colors.ram};
-    if(s.gpuEnabled) list[n++]={L"GPU",s.haveGpu,false,s.gpuUsage,s.colors.ram};
-    if(s.limitEnabled) list[n++]={L"LIM",s.haveLimit,false,s.limitPercent,s.colors.cpu};
-    if(s.temperatureEnabled) list[n++]={L"TEMP",s.haveTemperature,true,s.temperature,s.colors.cpu};
+    list[n++]={L"CPU",s.haveCpu,Percent,s.cpu,s.colors.cpu};
+    list[n++]={L"RAM",s.haveMemory,Percent,double(s.memory.dwMemoryLoad),s.colors.ram};
+    if(s.gpuEnabled) list[n++]={L"GPU",s.haveGpu,Percent,s.gpuUsage,s.colors.ram};
+    if(s.limitEnabled) list[n++]={L"LIM",s.haveLimit,Percent,s.limitPercent,s.colors.cpu};
+    if(s.temperatureEnabled) list[n++]={L"TEMP",s.haveTemperature,Degrees,s.temperature,s.colors.cpu};
+    if(s.networkEnabled) {
+        list[n++]={L"DOWN",s.haveNetwork,Rate,s.download,s.colors.ram};
+        list[n++]={L"UP",s.haveNetwork,Rate,s.upload,s.colors.ram};
+    }
     return n;
 }
-int extraColumns() { return int(s.gpuEnabled)+int(s.limitEnabled)+int(s.temperatureEnabled); }
+int extraColumns() { return int(s.gpuEnabled)+int(s.limitEnabled)+int(s.temperatureEnabled)+2*int(s.networkEnabled); }
+// Bytes per second in decimal units, at most four characters: 0.4K, 85K, 12M, 1.1G.
+void rateText(double bytes,wchar_t* out) {
+    const wchar_t units[]=L"KMG"; double value=bytes/1000; int unit=0;
+    while(unit<2 && value>=999.5) { value/=1000; ++unit; }
+    if(value<9.95) { int tenths=int(value*10+0.5); wsprintfW(out,L"%d.%d%c",tenths/10,tenths%10,units[unit]); }
+    else wsprintfW(out,L"%d%c",int(value+0.5),units[unit]);
+}
+// Link rates are quoted in bits per second, as Windows and routers show them.
+void linkText(uint64_t bits,wchar_t* out) {
+    double megabits=double(bits)/1e6;
+    if(megabits>=999.5) { int tenths=int(megabits/100+0.5); wsprintfW(out,L"%d.%d Gbps",tenths/10,tenths%10); }
+    else if(megabits<9.95) { int tenths=int(megabits*10+0.5); wsprintfW(out,L"%d.%d Mbps",tenths/10,tenths%10); }
+    else wsprintfW(out,L"%d Mbps",int(megabits+0.5));
+}
+// The narrow strip has room for "63°" but not "63°C".
+void columnText(const Column& column,bool compact,wchar_t* out) {
+    if(!column.valid) lstrcpyW(out,L"--");
+    else if(column.unit==Rate) rateText(column.value,out);
+    else if(column.unit==Degrees) wsprintfW(out,compact?L"%d\u00B0":L"%d\u00B0C",int(column.value+0.5));
+    else wsprintfW(out,L"%d%%",int(column.value+0.5));
+}
 int compactWidth() { return 196+98*extraColumns(); }
 int desktopWidth() { return 320+154*extraColumns(); }
 uint64_t ticks(FILETIME t) { return (uint64_t(t.dwHighDateTime)<<32) | t.dwLowDateTime; }
@@ -214,9 +244,9 @@ void save() {
     if (RegCreateKeyExW(HKEY_CURRENT_USER,kPrefs,0,0,0,KEY_SET_VALUE,0,&key,0)!=ERROR_SUCCESS) return;
     RECT r; GetWindowRect(s.window,&r);
     if(!s.compact) { s.x=r.left; s.y=r.top; }
-    DWORD values[]={DWORD(s.x),DWORD(s.y),DWORD(s.compact),DWORD(s.refreshMs),s.textScale,s.anchor,DWORD(s.taskbarOffset),s.colors.cpu,s.colors.ram,s.colors.value,DWORD(s.gpuEnabled),DWORD(s.limitEnabled),DWORD(s.temperatureEnabled)};
-    const wchar_t* names[]={L"X",L"Y",L"Taskbar",L"RefreshMs",L"TextScale",L"Anchor",L"TaskbarOffset",L"CpuColor",L"RamColor",L"ValueColor",L"GpuEnabled",L"LimitEnabled",L"TemperatureEnabled"};
-    for (int i=0;i<13;i++) RegSetValueExW(key,names[i],0,REG_DWORD,reinterpret_cast<BYTE*>(&values[i]),sizeof(DWORD));
+    DWORD values[]={DWORD(s.x),DWORD(s.y),DWORD(s.compact),DWORD(s.refreshMs),s.textScale,s.anchor,DWORD(s.taskbarOffset),s.colors.cpu,s.colors.ram,s.colors.value,DWORD(s.gpuEnabled),DWORD(s.limitEnabled),DWORD(s.temperatureEnabled),DWORD(s.networkEnabled)};
+    const wchar_t* names[]={L"X",L"Y",L"Taskbar",L"RefreshMs",L"TextScale",L"Anchor",L"TaskbarOffset",L"CpuColor",L"RamColor",L"ValueColor",L"GpuEnabled",L"LimitEnabled",L"TemperatureEnabled",L"NetworkEnabled"};
+    for (int i=0;i<14;i++) RegSetValueExW(key,names[i],0,REG_DWORD,reinterpret_cast<BYTE*>(&values[i]),sizeof(DWORD));
     RegCloseKey(key);
 }
 COLORREF validColor(DWORD color,COLORREF fallback) {
@@ -285,7 +315,7 @@ void toggleStartup() {
     if (result!=ERROR_SUCCESS) MessageBoxW(s.window,L"Could not change startup settings.",L"TaskVitals",MB_OK|MB_ICONERROR);
 }
 void sample() {
-    Column before[5]; int count=columns(before);
+    Column before[kMaxColumns]; int count=columns(before);
     CpuTimes now;
     if (readCpu(now)) { s.haveCpu=s.ready && cpuUsage(s.previous,now,s.cpu); s.previous=now; s.ready=true; }
     else { s.ready=false; s.haveCpu=false; }
@@ -293,13 +323,14 @@ void sample() {
     if(s.gpuEnabled) s.haveGpu=gpu.sample(s.gpuUsage);
     if(s.limitEnabled) s.haveLimit=limit.sample(s.limitPercent);
     if(s.temperatureEnabled) s.haveTemperature=readCoreTemp(s.temperature);
+    if(s.networkEnabled) s.haveNetwork=network.sample(s.download,s.upload);
     GetLocalTime(&s.sampledAt);
     // Repaint only when a displayed (rounded) value or its availability changes.
-    Column after[5]; columns(after);
-    for(int i=0;i<count;i++)
-        if(before[i].valid!=after[i].valid || (after[i].valid && int(before[i].value+0.5)!=int(after[i].value+0.5))) {
-            InvalidateRect(s.window,0,FALSE); break;
-        }
+    Column after[kMaxColumns]; columns(after);
+    for(int i=0;i<count;i++) {
+        wchar_t shown[16],next[16]; columnText(before[i],false,shown); columnText(after[i],false,next);
+        if(lstrcmpW(shown,next)!=0) { InvalidateRect(s.window,0,FALSE); break; }
+    }
 }
 void fill(HDC dc, RECT r, COLORREF color) { HBRUSH b=CreateSolidBrush(color); FillRect(dc,&r,b); DeleteObject(b); }
 void text(HDC dc, const wchar_t* value, RECT r, HFONT font, COLORREF color, UINT flags=DT_LEFT) {
@@ -314,7 +345,18 @@ void updateTooltipRect() {
     SendMessageW(s.tooltip,TTM_NEWTOOLRECTW,0,reinterpret_cast<LPARAM>(&tool));
 }
 void buildTooltip() {
-    wchar_t cpu[64],memory[160],gpuText[96]=L"",limitText[128]=L"",temperatureText[96]=L"";
+    wchar_t cpu[64],memory[160],gpuText[96]=L"",limitText[128]=L"",temperatureText[96]=L"",networkText[256]=L"";
+    if(s.networkEnabled) {
+        if(s.haveNetwork) {
+            wchar_t down[16],up[16]; rateText(s.download,down); rateText(s.upload,up);
+            wsprintfW(networkText,L"Network: %sB/s down, %sB/s up (physical adapters)\r\n",down,up);
+        } else lstrcpyW(networkText,L"Network: waiting for samples or no physical adapter\r\n");
+        if(network.link.down) {
+            wchar_t down[16],up[16],line[128]; linkText(network.link.down,down); linkText(network.link.up,up);
+            wsprintfW(line,L"Link to router (%s): %s down, %s up; not internet speed\r\n",network.link.name,down,up);
+            lstrcatW(networkText,line);
+        }
+    }
     if(s.limitEnabled) {
         if(s.haveLimit) wsprintfW(limitText,L"CPU speed limit: %d%% of base performance guaranteed (lowered by power policy, power budget or heat)\r\n",int(s.limitPercent+0.5));
         else lstrcpyW(limitText,L"CPU speed limit: waiting for samples or counter unavailable\r\n");
@@ -343,8 +385,8 @@ void buildTooltip() {
     static Tick64 ticks64=0;
     if(!ticks64) ticks64=procAddress<Tick64>(GetModuleHandleW(L"kernel32.dll"),"GetTickCount64");
     ULONGLONG minutes=(ticks64?ticks64():GetTickCount())/60000;
-    wsprintfW(s.tooltipText,L"%s\r\n%s\r\n%s%s%sUptime: %u days, %u h %u min\r\nSampled: %02u:%02u:%02u | Refresh: %u s\r\nRight-click for options. Ctrl+drag to move.",
-        cpu,memory,gpuText,limitText,temperatureText,UINT(minutes/1440),UINT((minutes/60)%24),UINT(minutes%60),UINT(s.sampledAt.wHour),UINT(s.sampledAt.wMinute),UINT(s.sampledAt.wSecond),s.refreshMs/1000);
+    wsprintfW(s.tooltipText,L"%s\r\n%s\r\n%s%s%s%sUptime: %u days, %u h %u min\r\nSampled: %02u:%02u:%02u | Refresh: %u s\r\nRight-click for options. Ctrl+drag to move.",
+        cpu,memory,gpuText,limitText,temperatureText,networkText,UINT(minutes/1440),UINT((minutes/60)%24),UINT(minutes%60),UINT(s.sampledAt.wHour),UINT(s.sampledAt.wMinute),UINT(s.sampledAt.wSecond),s.refreshMs/1000);
 }
 void createTooltip() {
     INITCOMMONCONTROLSEX controls={sizeof(controls),ICC_BAR_CLASSES};
@@ -498,15 +540,12 @@ bool setTextScale(UINT scale) {
 }
 void draw(HDC dc) {
     RECT client; GetClientRect(s.window,&client); fill(dc,client,kBackground); SetBkMode(dc,TRANSPARENT);
-    Column list[5]; int count=columns(list);
+    Column list[kMaxColumns]; int count=columns(list);
     if(s.compact) {
         for(int n=0;n<count;n++) {
             int left=n*98;
             if(n) fill(dc,box(left,7,left+1,25),RGB(60,66,78));
-            wchar_t number[16];
-            if(!list[n].valid) wcscpy(number,L"--");
-            // The narrow strip has room for "63°" but not "63°C".
-            else wsprintfW(number,list[n].degrees?L"%d\u00B0":L"%d%%",int(list[n].value+0.5));
+            wchar_t number[16]; columnText(list[n],true,number);
             text(dc,list[n].label,box(left+8,0,left+51,31),s.labelFont,list[n].accent);
             text(dc,number,box(left+51,0,left+91,31),s.regular,s.colors.value,DT_RIGHT);
         }
@@ -516,14 +555,13 @@ void draw(HDC dc) {
     for(int n=0;n<count;n++) {
         int left=12+n*154; fill(dc,box(left,40,left+142,133),RGB(32,37,46));
         int value=int(list[n].value+0.5);
-        wchar_t number[32];
-        if(!list[n].valid) wcscpy(number,L"--");
-        else wsprintfW(number,list[n].degrees?L"%d\u00B0C":L"%d%%",value);
+        wchar_t number[16]; columnText(list[n],false,number);
         text(dc,list[n].label,box(left+12,46,left+130,68),s.labelFont,list[n].accent);
         text(dc,number,box(left+12,67,left+130,108),s.number,s.colors.value);
         RECT track=box(left+12,117,left+130,120); fill(dc,track,RGB(54,62,77));
         // Percentages fill to 100%; temperature uses a 0-100 degree scale.
-        if(list[n].valid) { track.right=track.left+int((track.right-track.left)*(value>100?100:value)/100); fill(dc,track,list[n].accent); }
+        // Traffic has no natural maximum, so its track stays empty.
+        if(list[n].valid && list[n].unit!=Rate) { track.right=track.left+int((track.right-track.left)*(value>100?100:value)/100); fill(dc,track,list[n].accent); }
     }
 }
 void paint() {
@@ -547,6 +585,7 @@ void menu(POINT point) {
     AppendMenuW(m,MF_STRING|(s.gpuEnabled?MF_CHECKED:0),ToggleGpu,L"Show GPU (optional)");
     AppendMenuW(m,MF_STRING|(s.limitEnabled?MF_CHECKED:0),ToggleLimit,L"Show CPU speed limit (optional)");
     AppendMenuW(m,MF_STRING|(s.temperatureEnabled?MF_CHECKED:0),ToggleTemperature,L"Show CPU temperature (needs Core Temp)");
+    AppendMenuW(m,MF_STRING|(s.networkEnabled?MF_CHECKED:0),ToggleNetwork,L"Show network traffic (optional)");
     HMENU sizes=CreatePopupMenu();
     const UINT scales[]={85,100,120};
     const wchar_t* sizeLabels[]={L"Small",L"Normal (default)",L"Large"};
@@ -627,6 +666,10 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
             s.temperatureEnabled=!s.temperatureEnabled; s.temperature=0;
             s.haveTemperature=s.temperatureEnabled && readCoreTemp(s.temperature);
             columnsChanged(); break;
+        case ToggleNetwork:
+            s.networkEnabled=!s.networkEnabled; s.haveNetwork=false; s.download=s.upload=0;
+            if(s.networkEnabled) network.start(); else network.stop();
+            columnsChanged(); break;
         case ColorsDefault: case ColorsWhite: case ColorsOcean: case ColorsWarm: case ColorsDark:
             s.colors=kPalettes[LOWORD(wp)-ColorsDefault]; colorsChanged(); break;
         case PickCpuColor: chooseColor(s.colors.cpu); break;
@@ -682,7 +725,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
             SHAppBarMessage(ABM_REMOVE,&bar); s.appBar=false;
         }
         if(s.foregroundHook) { UnhookWinEvent(s.foregroundHook); s.foregroundHook=0; }
-        gpu.stop(); limit.stop();
+        gpu.stop(); limit.stop(); network.stop();
         KillTimer(w,1); KillTimer(w,2);
         if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
         if(s.tooltip) { DestroyWindow(s.tooltip); s.tooltip=0; }
@@ -718,6 +761,41 @@ int selfTest() {
     if(!coreTempHottest(core,celsius) || celsius!=75) return 33;
     core.coreCount=257;
     if(coreTempHottest(core,celsius)) return 34;
+    const double rates[]={0,420,85000,999400,999600,12300000,1.1e9};
+    const wchar_t* rateLabels[]={L"0.0K",L"0.4K",L"85K",L"999K",L"1.0M",L"12M",L"1.1G"};
+    for(int i=0;i<7;i++) { wchar_t rate[16]; rateText(rates[i],rate); if(lstrcmpW(rate,rateLabels[i])!=0) return 40; }
+    NetworkCounter before[]={{1,100,50},{2,10,10}}, after[]={{2,15,30},{1,300,60},{3,999,999}};
+    uint64_t received=0,sent=0;
+    if(!networkDelta(before,2,after,3,received,sent) || received!=205 || sent!=30) return 41;
+    NetworkCounter reset[]={{1,50,60}}, other[]={{9,1,1}};
+    if(!networkDelta(before,2,reset,1,received,sent) || received || sent) return 42;
+    if(networkDelta(before,2,other,1,received,sent)) return 43;
+    static unsigned char table[kIfTableRows+4*kIfRowBytes];
+    DWORD rows=4; memcpy(table,&rows,sizeof(rows));
+    const DWORD types[]={6,71,6,kIfLoopback};
+    const unsigned char flags[]={kIfHardware,kIfHardware,kIfHardware|kIfFilter,kIfHardware};
+    for(DWORD i=0;i<rows;i++) {
+        unsigned char* row=table+kIfTableRows+i*kIfRowBytes; uint64_t id=i+1,bytes=1000*(i+1);
+        memcpy(row+kIfLuid,&id,8); memcpy(row+kIfType,&types[i],4); row[kIfFlags]=flags[i];
+        memcpy(row+kIfInOctets,&bytes,8); bytes*=2; memcpy(row+kIfOutOctets,&bytes,8);
+        // Only the connected Wi-Fi adapter (row 2) may supply the link rate.
+        const DWORD statuses[]={2,kIfUp,kIfUp,kIfUp};
+        const uint64_t downs[]={10000000000ull,866700000ull,40000000000ull,40000000000ull};
+        memcpy(row+kIfOperStatus,&statuses[i],4); memcpy(row+kIfReceiveSpeed,&downs[i],8);
+        uint64_t up=downs[i]/2; memcpy(row+kIfTransmitSpeed,&up,8);
+    }
+    memcpy(table+kIfTableRows+kIfRowBytes+kIfAlias,L"Wi-Fi",6*sizeof(wchar_t));
+    NetworkCounter adapters[32]; NetworkLink link;
+    if(networkCounters(table,adapters,32,link)!=2 || adapters[1].adapter!=2 || adapters[1].received!=2000 || adapters[1].sent!=4000) return 44;
+    if(link.down!=866700000ull || link.up!=433350000ull || lstrcmpW(link.name,L"Wi-Fi")!=0) return 47;
+    if(networkCounters(table,adapters,1,link)!=1) return 45;
+    table[kIfTableRows+kIfFlags]=0;
+    if(networkCounters(table,adapters,32,link)!=1 || adapters[0].adapter!=2) return 46;
+    uint64_t unknown=~uint64_t(0); memcpy(table+kIfTableRows+kIfRowBytes+kIfReceiveSpeed,&unknown,8);
+    if(networkCounters(table,adapters,32,link)!=1 || link.down || link.name[0]) return 48;
+    const uint64_t links[]={866700000ull,6500000ull,1000000000ull,2400000000ull};
+    const wchar_t* linkLabels[]={L"867 Mbps",L"6.5 Mbps",L"1.0 Gbps",L"2.4 Gbps"};
+    for(int i=0;i<4;i++) { wchar_t text[16]; linkText(links[i],text); if(lstrcmpW(text,linkLabels[i])!=0) return 49; }
     int x=0; Span spans[]={{0,540},{1500,1920}};
     if(!freePosition(12,1908,196,12,spans,2,x) || x!=540) return 10;
     if(!freePosition(12,1908,196,1712,spans,2,x) || x!=1304) return 11;
@@ -770,6 +848,7 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     s.gpuEnabled=pref(L"GpuEnabled",0)==1;
     s.limitEnabled=pref(L"LimitEnabled",0)==1;
     s.temperatureEnabled=pref(L"TemperatureEnabled",0)==1;
+    s.networkEnabled=pref(L"NetworkEnabled",0)==1;
     s.taskbarOffset=int(pref(L"TaskbarOffset",0));
     if(s.taskbarOffset<0 || s.taskbarOffset>65535) s.taskbarOffset=0;
     s.colors.cpu=validColor(pref(L"CpuColor",kPalettes[0].cpu),kPalettes[0].cpu);
@@ -791,6 +870,7 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     setMode(pref(L"Taskbar",1)!=0);
     if(s.gpuEnabled) gpu.start();
     if(s.limitEnabled) limit.start();
+    if(s.networkEnabled) network.start();
     sample();
     if(!setRefresh(s.refreshMs)) { DestroyWindow(s.window); CloseHandle(mutex); return 1; }
     if(!s.hidden) ShowWindow(s.window,SW_SHOWNOACTIVATE);

@@ -28,4 +28,6 @@ Taskbar placement is constrained to free gaps between accessible shell controls.
 
 `LimitEnabled` and `TemperatureEnabled` are DWORDs: 0 (default) hides the CPU speed-limit or CPU-temperature column; 1 shows it. Both use the CPU accent. Disabling the speed limit releases its PDH query. The temperature column reads Core Temp's shared memory only while enabled and shows `--` when Core Temp is not running.
 
+`NetworkEnabled` is a DWORD: 0 (default) hides the network traffic columns; 1 shows `DOWN` and `UP`. Both use the RAM accent. The columns read the physical adapters' byte counters through IP Helper only while enabled, and disabling them releases the library.
+
 `GpuEnabled` is a DWORD: 0 (default) disables GPU monitoring; 1 enables it. The optional GPU column uses the RAM accent and the shared percentage-text color. Disabling it releases the PDH query and reusable buffer. Unsupported counters show `--`; toggle off/on to retry initialization.
