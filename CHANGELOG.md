@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the taskbar strip staying above the taskbar after one failed read of the taskbar's buttons. The read is now retried after 1, 2, 4… seconds, at most once a minute, instead of waiting for the next taskbar change.
+
 ## 1.9.0 — 2026-10-25
 
 - Added optional network traffic columns (`DOWN` and `UP`), off by default: bytes per second received and sent by the physical adapters, from the counters Windows already keeps. TaskVitals sends nothing and runs no speed test. IP Helper loads only while the columns are on. The hover details also show the connected adapter's link rate to the router, labeled as not the internet speed.

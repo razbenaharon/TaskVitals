@@ -24,7 +24,7 @@ The menu check mark reports this executable's startup registration. Windows Sett
 
 To remove the app, uncheck Start with Windows, exit, and delete its folder. Optionally delete the `Software\TaskVitals` preference key. If the executable was already deleted, remove only the `TaskVitals` value from the Run key; keep the Run key itself.
 
-Taskbar placement is constrained to free gaps between accessible shell controls. If the taskbar is full or its controls cannot be read, the strip floats just above it. A saved custom offset is a preferred location; it never overrides collision avoidance. Layout changes are coalesced through a one-shot 200 ms event timer, separate from CPU/RAM sampling.
+Taskbar placement is constrained to free gaps between accessible shell controls. If the taskbar is full or its controls cannot be read, the strip floats just above it. A failed read is retried after 1, 2, 4… seconds, at most once a minute, so a brief failure does not leave the strip floating until the next taskbar change. A saved custom offset is a preferred location; it never overrides collision avoidance. Layout changes are coalesced through a one-shot 200 ms event timer, separate from CPU/RAM sampling.
 
 `LimitEnabled` and `TemperatureEnabled` are DWORDs: 0 (default) hides the CPU speed-limit or CPU-temperature column; 1 shows it. Both use the CPU accent. Disabling the speed limit releases its PDH query. The temperature column reads Core Temp's shared memory only while enabled and shows `--` when Core Temp is not running.
 

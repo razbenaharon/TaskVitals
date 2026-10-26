@@ -61,8 +61,11 @@ struct State {
 struct Span { int left,right; };
 struct TaskbarLayout {
     HWND bar; HWINEVENTHOOK hook; RECT bounds;
-    Span occupied[128]; int count; bool valid,dirty,pending;
+    Span occupied[128]; int count; bool valid,dirty,pending; UINT retryMs;
 } layout = {};
+// A failed read is often brief (Explorer busy). Retry after 1, 2, 4... seconds,
+// at most once a minute, so a lasting failure costs little.
+UINT nextRetry(UINT milliseconds) { return !milliseconds?1000:milliseconds>=32000?60000:milliseconds*2; }
 
 // Find a full-width gap, never clamp an overlay into an occupied button.
 bool freePosition(int left,int right,int width,int desired,const Span* spans,int count,int& x) {
@@ -175,6 +178,10 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
         while(j>0 && layout.occupied[j-1].left>value.left) { layout.occupied[j]=layout.occupied[j-1]; --j; }
         layout.occupied[j]=value;
     }
+    // Without a retry, the strip would float above the taskbar until the next
+    // taskbar change.
+    if(layout.valid) { if(layout.retryMs) { KillTimer(s.window,3); layout.retryMs=0; } }
+    else { layout.retryMs=nextRetry(layout.retryMs); SetTimer(s.window,3,layout.retryMs,0); }
 }
 
 int px(int n) { return MulDiv(n, s.dpi*int(s.textScale), 9600); }
@@ -637,6 +644,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
     case WM_TIMER:
         if(wp==1) { sample(); positionTaskbar(); updateFullscreen(); }
         else if(wp==2) { KillTimer(w,2); layout.pending=false; positionTaskbar(); }
+        else if(wp==3) { KillTimer(w,3); layout.dirty=true; positionTaskbar(); }
         return 0;
     case WM_LBUTTONDOWN:
         if(!s.compact || (GetKeyState(VK_CONTROL)&0x8000)) {
@@ -726,7 +734,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         }
         if(s.foregroundHook) { UnhookWinEvent(s.foregroundHook); s.foregroundHook=0; }
         gpu.stop(); limit.stop(); network.stop();
-        KillTimer(w,1); KillTimer(w,2);
+        KillTimer(w,1); KillTimer(w,2); KillTimer(w,3);
         if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
         if(s.tooltip) { DestroyWindow(s.tooltip); s.tooltip=0; }
         save(); PostQuitMessage(0); return 0;
@@ -813,6 +821,8 @@ int selfTest() {
     }
     Span narrow[]={{0,1200},{1450,1920}};
     if(!freePosition(12,1908,196,12,narrow,2,x) || freePosition(12,1908,294,12,narrow,2,x)) return 17;
+    if(nextRetry(0)!=1000 || nextRetry(1000)!=2000 || nextRetry(16000)!=32000 ||
+       nextRetry(32000)!=60000 || nextRetry(60000)!=60000) return 18;
     double value=0; CpuTimes a={100,200,100}, b={150,300,200};
     if(!cpuUsage(a,b,value) || value!=75.0) return 1;
     if(cpuUsage(a,a,value)) return 2;
