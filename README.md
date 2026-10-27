@@ -2,7 +2,11 @@
 
 [![Windows build](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml/badge.svg)](https://github.com/razbenaharon/TaskVitals/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/razbenaharon/TaskVitals)](https://github.com/razbenaharon/TaskVitals/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/razbenaharon/TaskVitals/total)](https://github.com/razbenaharon/TaskVitals/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Platform: Windows 11](https://img.shields.io/badge/platform-Windows%2011-0078D4)](#download)
+[![C++11 / Win32](https://img.shields.io/badge/C%2B%2B11-Win32-00599C)](src)
+[![Last commit](https://img.shields.io/github/last-commit/razbenaharon/TaskVitals)](https://github.com/razbenaharon/TaskVitals/commits/main)
 
 **A small, portable CPU and RAM monitor for the Windows 11 taskbar.**
 
