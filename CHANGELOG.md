@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.9.1 — 2026-11-01
 
+- Fixed the widget staying hidden behind an ordinary maximized window. Windows can report a full-screen app while only an invisible full-screen overlay from another program is open; TaskVitals now hides only while the window in front actually covers its monitor.
 - Fixed the taskbar strip staying above the taskbar after one failed read of the taskbar's buttons. The read is now retried after 1, 2, 4… seconds, at most once a minute, instead of waiting for the next taskbar change.
 
 ## 1.9.0 — 2026-10-25

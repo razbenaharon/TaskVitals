@@ -1,6 +1,8 @@
 # Release verification
 
-Version 1.9.0, prepared on 2026-10-25 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.9.0).
+Version 1.9.1, prepared on 2026-11-01 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.9.1).
+
+Version 1.9.1 fixes the widget staying hidden when only an invisible full-screen overlay from another program made Windows report a full-screen app, and retries a failed taskbar layout read. The final build passed the built-in self-test and the GUI smoke suite, and was seen live on the taskbar while such an overlay (from the Claude desktop app) was open. The network, GPU and thermal checks below are from 1.9.0; those code paths are unchanged.
 
 Version 1.9.0 adds the optional network traffic columns and recovery after Explorer restarts. The final build was checked with the built-in self-test, the GUI smoke suite, the GPU, thermal and network toggle/restart tests and the live placement test with the network columns on. Custom RGB-dialog interaction and library unloading were verified on the unchanged picker implementation in 1.5.0.
 
@@ -39,8 +41,8 @@ Version 1.9.0 adds the optional network traffic columns and recovery after Explo
 
 - File: TaskVitals.exe
 - Architecture: x86
-- Size: 100,352 bytes
-- SHA-256: 07934FB62FB22C8802DAFC8B59CB1FEB489D4AF152D4A44C61DBD7670F34FEF7
+- Size: 100,864 bytes
+- SHA-256: 356ECFF4A56AFB38436D5B1790BC97629B84DB0B55E9498E929383816B554722
 - Signature: unsigned
 
 The current [smoke report](measurements/publication-smoke.json) recorded 13.65 MiB working set and 2.98 MiB private memory during its 12-second desktop observation; GDI stayed at 17 and USER resources at 9. Process CPU time was 15.62 ms, one tick of the process-time clock. Separate network, speed-limit/temperature and GPU observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).

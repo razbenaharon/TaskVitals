@@ -16,24 +16,24 @@ TaskVitals shows CPU and memory usage as a few readable percentages in a transpa
 
 - **On the taskbar:** CPU and RAM sit in a free gap on the taskbar, placed to avoid your app buttons. You can also switch to draggable desktop cards. The widget hides while a full-screen app is in front on its monitor.
 - **Opt-in extras:** [GPU usage, CPU speed limit, CPU temperature and network traffic](#optional-columns) stay off until you turn them on. Temperature needs the separate Core Temp utility.
-- **Portable:** one executable of about 98 KiB that runs as your normal user, with no installer, Electron or .NET runtime. TaskVitals itself never needs administrator rights; the optional temperature column relies on Core Temp, which does.
+- **Portable:** one executable of about 99 KiB that runs as your normal user, with no installer, Electron or .NET runtime. TaskVitals itself never needs administrator rights; the optional temperature column relies on Core Temp, which does.
 - **Light:** one sampling timer (5 seconds by default), and it repaints only when a shown value changes. With default settings it used about 13 MiB of working set in short observations on one Windows 11 machine. [Resource use](#resource-use)
 - **Private:** no telemetry, account or automatic update checks. [What it touches](#privacy-what-taskvitals-touches)
 - **Checkable:** open source, with a SHA-256 checksum next to each release download, plus automated MSVC builds and self-tests in CI (separate from the download). [Verify your download](#verify-your-download)
 
-> **New in 1.9.0:** optional **network traffic** columns (`DOWN` and `UP`), off by default. They show the bytes per second your physical adapters receive and send, read from counters Windows already keeps; TaskVitals sends nothing. The hover details add the link rate to your router. The widget also recovers by itself after Explorer restarts. See the [changelog](CHANGELOG.md).
+> **New in 1.9.1:** the widget no longer stays hidden behind an ordinary window when another program opens an invisible full-screen overlay, and the taskbar strip no longer floats above the taskbar after a failed read of its buttons. Version 1.9.0 added optional **network traffic** columns (`DOWN` and `UP`), off by default. See the [changelog](CHANGELOG.md).
 
 ## Download
 
-**[Download TaskVitals 1.9.0 for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.9.0/TaskVitals-1.9.0-windows-x86.zip)** · [Release notes, checksum and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
+**[Download TaskVitals 1.9.1 for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.9.1/TaskVitals-1.9.1-windows-x86.zip)** · [Release notes, checksum and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
 
-1. Download `TaskVitals-1.9.0-windows-x86.zip`, right-click it and choose **Extract all**.
+1. Download `TaskVitals-1.9.1-windows-x86.zip`, right-click it and choose **Extract all**.
 2. Keep the extracted folder somewhere permanent, then double-click `TaskVitals.exe`.
 3. Look for **CPU** and **RAM** on your taskbar, by default near the notification area. Right-click the visible text for options, including **Exit**.
 
 TaskVitals needs no installer, account or administrator permission. (The optional temperature column relies on Core Temp, a separate program that asks for administrator approval; see [CPU temperature](#cpu-temperature).) The x86 build is tested on x64 Windows 11. The first CPU percentage appears with the second sample, after 5 seconds by default. The optional columns and **Start with Windows** stay off until you turn them on. Only one copy runs at a time; starting `TaskVitals.exe` again brings the running copy forward.
 
-The ZIP contains `TaskVitals.exe`, `README.txt` (a short plain-text guide), `LICENSE`, `CHANGELOG.md` and `THIRD-PARTY-NOTICES.txt`. `TaskVitals.exe` is 100,352 bytes (about 98 KiB), x86, built with MinGW.org GCC 6.3.0, and **unsigned**, so Windows may warn before it runs a downloaded copy. See [Verify your download](#verify-your-download).
+The ZIP contains `TaskVitals.exe`, `README.txt` (a short plain-text guide), `LICENSE`, `CHANGELOG.md` and `THIRD-PARTY-NOTICES.txt`. `TaskVitals.exe` is 100,864 bytes (about 99 KiB), x86, built with MinGW.org GCC 6.3.0, and **unsigned**, so Windows may warn before it runs a downloaded copy. See [Verify your download](#verify-your-download).
 
 ## Read the numbers
 
@@ -139,7 +139,7 @@ It loads the Windows IP Helper library only while it is on, and releases it when
 
 ## Resource use
 
-`TaskVitals.exe` is 100,352 bytes (about 98 KiB). The table shows short observations of version 1.9.0 on one Windows 11 machine. Each mode ran for 30 seconds at Normal size, Right position and the 5-second refresh, with GPU, speed limit and temperature off:
+`TaskVitals.exe` is 100,864 bytes (about 99 KiB). The table shows short observations of version 1.9.0 on one Windows 11 machine. Each mode ran for 30 seconds at Normal size, Right position and the 5-second refresh, with GPU, speed limit and temperature off:
 
 | Optional columns | Working set | Private memory | CPU, whole machine |
 | --- | ---: | ---: | ---: |
@@ -174,11 +174,11 @@ These are short observations on one machine, not requirements, limits or guarant
 
 ## Verify your download
 
-**Checksum.** Each release publishes a `.sha256` file next to its ZIP. For 1.9.0 it is `TaskVitals-1.9.0-windows-x86.zip.sha256`. Download both files into the same folder, then compare the two hashes in PowerShell. Letter case does not matter.
+**Checksum.** Each release publishes a `.sha256` file next to its ZIP. For 1.9.1 it is `TaskVitals-1.9.1-windows-x86.zip.sha256`. Download both files into the same folder, then compare the two hashes in PowerShell. Letter case does not matter.
 
 ```powershell
-(Get-FileHash .\TaskVitals-1.9.0-windows-x86.zip -Algorithm SHA256).Hash
-Get-Content .\TaskVitals-1.9.0-windows-x86.zip.sha256
+(Get-FileHash .\TaskVitals-1.9.1-windows-x86.zip -Algorithm SHA256).Hash
+Get-Content .\TaskVitals-1.9.1-windows-x86.zip.sha256
 ```
 
 **Unsigned.** `TaskVitals.exe` has no code-signing certificate, so Windows or your browser may warn about a downloaded copy. A matching checksum confirms that your ZIP matches the published file. You can also read the source and [build your own copy](#build-from-source).
