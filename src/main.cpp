@@ -437,11 +437,20 @@ void positionTaskbar() {
         SetWindowPos(s.window,HWND_TOPMOST,x,y,width,height,SWP_NOACTIVATE);
 }
 // Follow the shell's own full-screen decision, as the taskbar does. The shell
-// reports it per session, so only hide for a window on this widget's monitor.
+// reports it per session, and an invisible full-screen overlay from another app
+// can set it, so only hide while the foreground window itself covers this
+// widget's monitor.
+bool coversMonitor(HWND window) {
+    HMONITOR monitor=MonitorFromWindow(window,MONITOR_DEFAULTTONULL);
+    if(!monitor || monitor!=MonitorFromWindow(s.window,MONITOR_DEFAULTTONEAREST)) return false;
+    MONITORINFO info={}; info.cbSize=sizeof(info); RECT r;
+    return GetMonitorInfoW(monitor,&info) && GetWindowRect(window,&r) &&
+        r.left<=info.rcMonitor.left && r.top<=info.rcMonitor.top &&
+        r.right>=info.rcMonitor.right && r.bottom>=info.rcMonitor.bottom;
+}
 void updateFullscreen() {
     HWND front=GetForegroundWindow();
-    bool hide=s.shellFullscreen && front && front!=s.window &&
-        MonitorFromWindow(front,MONITOR_DEFAULTTONULL)==MonitorFromWindow(s.window,MONITOR_DEFAULTTONEAREST);
+    bool hide=s.shellFullscreen && front && front!=s.window && coversMonitor(front);
     if(hide==s.hidden) return;
     s.hidden=hide;
     if(hide) {
