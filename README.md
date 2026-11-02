@@ -21,13 +21,13 @@ TaskVitals shows CPU and memory usage as a few readable percentages in a transpa
 - **Private:** no telemetry, account or automatic update checks. [What it touches](#privacy-what-taskvitals-touches)
 - **Checkable:** open source, with a SHA-256 checksum next to each release download, plus automated MSVC builds and self-tests in CI (separate from the download). [Verify your download](#verify-your-download)
 
-> **New in 1.9.1:** the widget no longer stays hidden behind an ordinary window when another program opens an invisible full-screen overlay, and the taskbar strip no longer floats above the taskbar after a failed read of its buttons. Version 1.9.0 added optional **network traffic** columns (`DOWN` and `UP`), off by default. See the [changelog](CHANGELOG.md).
+> **New in 1.9.2:** the taskbar strip no longer floats above the taskbar after waking from sleep or after the display scale changes (for example from 100% to 125%) while TaskVitals is running. Version 1.9.0 added optional **network traffic** columns (`DOWN` and `UP`), off by default. See the [changelog](CHANGELOG.md).
 
 ## Download
 
-**[Download TaskVitals 1.9.1 for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.9.1/TaskVitals-1.9.1-windows-x86.zip)** · [Release notes, checksum and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
+**[Download TaskVitals 1.9.2 for Windows (.zip)](https://github.com/razbenaharon/TaskVitals/releases/download/v1.9.2/TaskVitals-1.9.2-windows-x86.zip)** · [Release notes, checksum and source](https://github.com/razbenaharon/TaskVitals/releases/latest)
 
-1. Download `TaskVitals-1.9.1-windows-x86.zip`, right-click it and choose **Extract all**.
+1. Download `TaskVitals-1.9.2-windows-x86.zip`, right-click it and choose **Extract all**.
 2. Keep the extracted folder somewhere permanent, then double-click `TaskVitals.exe`.
 3. Look for **CPU** and **RAM** on your taskbar, by default near the notification area. Right-click the visible text for options, including **Exit**.
 
@@ -174,11 +174,11 @@ These are short observations on one machine, not requirements, limits or guarant
 
 ## Verify your download
 
-**Checksum.** Each release publishes a `.sha256` file next to its ZIP. For 1.9.1 it is `TaskVitals-1.9.1-windows-x86.zip.sha256`. Download both files into the same folder, then compare the two hashes in PowerShell. Letter case does not matter.
+**Checksum.** Each release publishes a `.sha256` file next to its ZIP. For 1.9.2 it is `TaskVitals-1.9.2-windows-x86.zip.sha256`. Download both files into the same folder, then compare the two hashes in PowerShell. Letter case does not matter.
 
 ```powershell
-(Get-FileHash .\TaskVitals-1.9.1-windows-x86.zip -Algorithm SHA256).Hash
-Get-Content .\TaskVitals-1.9.1-windows-x86.zip.sha256
+(Get-FileHash .\TaskVitals-1.9.2-windows-x86.zip -Algorithm SHA256).Hash
+Get-Content .\TaskVitals-1.9.2-windows-x86.zip.sha256
 ```
 
 **Unsigned.** `TaskVitals.exe` has no code-signing certificate, so Windows or your browser may warn about a downloaded copy. A matching checksum confirms that your ZIP matches the published file. You can also read the source and [build your own copy](#build-from-source).

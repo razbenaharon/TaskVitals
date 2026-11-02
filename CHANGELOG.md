@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.9.2 — 2026-11-02
 
 - Fixed the taskbar strip floating above the taskbar after the display scale changed while TaskVitals was running (for example 100% to 125%). The taskbar's buttons were measured in screen pixels but compared with the taskbar in the scale TaskVitals started with, so none were found; the buttons are now mapped into the same scale.
 - Fixed the taskbar strip floating after waking from sleep or hibernation. TaskVitals now reads the taskbar again shortly after resuming and after display changes, outside the system's notification (where reading the taskbar fails), and also retries a read that finds no free room, since Explorer can report its buttons before laying them out.

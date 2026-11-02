@@ -1,6 +1,8 @@
 # Release verification
 
-Version 1.9.1, prepared on 2026-11-01 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.9.1).
+Version 1.9.2, prepared on 2026-11-02 for the public [TaskVitals repository](https://github.com/razbenaharon/TaskVitals) and [download release](https://github.com/razbenaharon/TaskVitals/releases/tag/v1.9.2).
+
+Version 1.9.2 fixes the taskbar strip floating above the taskbar after a display scale change or a resume from sleep. The final build passed the built-in self-test. It was checked live on a Windows 11 machine at 125% scale: run with a forced 96 DPI (the scale-change case), the 1.9.1 build floated while the 1.9.2 build sat in the taskbar; after the strip was moved away, a simulated resume message and a display-change message each brought it back into the taskbar within two seconds. A real sleep cycle was not run.
 
 Version 1.9.1 fixes the widget staying hidden when only an invisible full-screen overlay from another program made Windows report a full-screen app, and retries a failed taskbar layout read. The final build passed the built-in self-test and the GUI smoke suite, and was seen live on the taskbar while such an overlay (from the Claude desktop app) was open. The network, GPU and thermal checks below are from 1.9.0; those code paths are unchanged.
 
@@ -42,7 +44,7 @@ Version 1.9.0 adds the optional network traffic columns and recovery after Explo
 - File: TaskVitals.exe
 - Architecture: x86
 - Size: 100,864 bytes
-- SHA-256: 356ECFF4A56AFB38436D5B1790BC97629B84DB0B55E9498E929383816B554722
+- SHA-256: A34319DDCE6764C67BC049B938D6E46539CFB8E08489B40808B1F3451CDF577A
 - Signature: unsigned
 
 The current [smoke report](measurements/publication-smoke.json) recorded 13.65 MiB working set and 2.98 MiB private memory during its 12-second desktop observation; GDI stayed at 17 and USER resources at 9. Process CPU time was 15.62 ms, one tick of the process-time clock. Separate network, speed-limit/temperature and GPU observations and limitations are in [PERFORMANCE.md](PERFORMANCE.md).

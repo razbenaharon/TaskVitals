@@ -1,17 +1,17 @@
-# TaskVitals 1.9.1
+# TaskVitals 1.9.2
 
 A small native Windows CPU and RAM monitor, with a transparent taskbar view and optional desktop cards.
 
-Version 1.9.1 is a bug-fix release:
+Version 1.9.2 is a bug-fix release for the taskbar strip, which could float above the taskbar instead of sitting in it:
 
-- **The widget no longer disappears behind an ordinary window.** TaskVitals hides while a full-screen app, such as a game or a full-screen video, is in front. Windows can report a full-screen app while only an invisible full-screen overlay from another program is open, and the widget then stayed hidden. It now hides only while the window in front actually covers its monitor.
-- **The taskbar strip no longer floats above the taskbar** after one failed read of the taskbar's buttons. The read is retried after 1, 2, 4… seconds, at most once a minute, instead of waiting for the next taskbar change.
+- **After the display scale changes while TaskVitals runs** (for example from 100% to 125%). TaskVitals measured the taskbar's buttons and the taskbar itself in different scales, found no buttons and floated. The buttons are now mapped into the same scale.
+- **After waking from sleep or hibernation.** TaskVitals now reads the taskbar again shortly after resuming and after display changes, and also retries when a read finds no free room, since Explorer can report its buttons before laying them out.
 
 No settings change. The network, GPU, speed-limit and temperature columns from earlier versions are unchanged and stay off until you turn them on.
 
 ## Download and run
 
-Download `TaskVitals-1.9.1-windows-x86.zip`, extract it to a permanent folder, and run `TaskVitals.exe`. No installer or separate runtime is needed. This x86 build was tested on x64 Windows 11. Right-click the visible text for options.
+Download `TaskVitals-1.9.2-windows-x86.zip`, extract it to a permanent folder, and run `TaskVitals.exe`. No installer or separate runtime is needed. This x86 build was tested on x64 Windows 11. Right-click the visible text for options.
 
 ## Notes
 
