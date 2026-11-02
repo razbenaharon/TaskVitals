@@ -158,7 +158,8 @@ void CALLBACK taskbarChanged(HWINEVENTHOOK,DWORD event,HWND window,LONG object,L
     // Coalesce Explorer's animation events; no periodic accessibility polling.
     if(!layout.pending) layout.pending=SetTimer(s.window,2,200,0)!=0;
 }
-void readTaskbarLayout(HWND bar,const RECT& bounds) {
+// Returns whether the layout was read again; a cached layout returns false.
+bool readTaskbarLayout(HWND bar,const RECT& bounds) {
     if(layout.bar!=bar) {
         if(layout.hook) UnhookWinEvent(layout.hook);
         layout.bar=bar; DWORD process=0; GetWindowThreadProcessId(bar,&process);
@@ -167,7 +168,7 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
         layout.dirty=true;
     }
     if(!EqualRect(&layout.bounds,&bounds)) layout.dirty=true;
-    if(!layout.dirty && layout.hook) return;
+    if(!layout.dirty && layout.hook) return false;
     layout.bounds=bounds; layout.physical=bounds; layout.count=0; layout.valid=true; layout.dirty=false;
     // This process keeps the display scale it started with. After the scale
     // changes, window rectangles stay in that scale while the taskbar's XAML
@@ -191,10 +192,7 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
         while(j>0 && layout.occupied[j-1].left>value.left) { layout.occupied[j]=layout.occupied[j-1]; --j; }
         layout.occupied[j]=value;
     }
-    // Without a retry, the strip would float above the taskbar until the next
-    // taskbar change.
-    if(layout.valid) { if(layout.retryMs) { KillTimer(s.window,3); layout.retryMs=0; } }
-    else { layout.retryMs=nextRetry(layout.retryMs); SetTimer(s.window,3,layout.retryMs,0); }
+    return true;
 }
 
 int px(int n) { return MulDiv(n, s.dpi*int(s.textScale), 9600); }
@@ -425,7 +423,7 @@ void positionTaskbar() {
     if(!s.compact || s.dragging) return;
     HWND bar=FindWindowW(L"Shell_TrayWnd",0); RECT r;
     if(!bar || !GetWindowRect(bar,&r)) return;
-    readTaskbarLayout(bar,r);
+    bool read=readTaskbarLayout(bar,r);
     int width=px(compactWidth()),height=px(32);
     int right=r.right-px(12);
     HWND tray=FindWindowExW(bar,0,L"TrayNotifyWnd",0);
@@ -437,7 +435,15 @@ void positionTaskbar() {
     else if(s.anchor==3) x=r.left+MulDiv(s.taskbarOffset,s.dpi,96);
     int desired=x;
     int y=r.top+(r.bottom-r.top-height)/2;
-    if(!layout.valid || !freePosition(left,right,width,desired,layout.occupied,layout.count,x)) {
+    bool placed=layout.valid && freePosition(left,right,width,desired,layout.occupied,layout.count,x);
+    // Without a retry, the strip would float above the taskbar until the next
+    // taskbar change. After a resume Explorer can report its buttons before it
+    // has laid them out, so a read that finds no room is retried as well.
+    if(read) {
+        if(placed) { if(layout.retryMs) { KillTimer(s.window,3); layout.retryMs=0; } }
+        else { layout.retryMs=nextRetry(layout.retryMs); SetTimer(s.window,3,layout.retryMs,0); }
+    }
+    if(!placed) {
         // Stay reachable without covering shell controls when full or unreadable.
         x=desired; if(x>r.right-width) x=r.right-width; if(x<r.left) x=r.left;
         MONITORINFO monitor={}; monitor.cbSize=sizeof(monitor);
@@ -733,8 +739,23 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
     case WM_EXITSIZEMOVE:
         if(s.compact) rememberTaskbarOffset();
         save(); return 0;
+    case WM_POWERBROADCAST:
+        // Explorer rebuilds its taskbar after sleep or hibernation without
+        // always reporting each button; read it again from a fresh retry. The
+        // system sends this message synchronously, and accessibility calls to
+        // Explorer fail inside it, so read from a timer instead.
+        if(wp==PBT_APMRESUMEAUTOMATIC || wp==PBT_APMRESUMESUSPEND) {
+            layout.retryMs=nextRetry(0); SetTimer(w,3,layout.retryMs,0);
+        }
+        return TRUE;
     case WM_DISPLAYCHANGE: {
-        if(s.compact) { positionTaskbar(); return 0; }
+        // Resolution, scale or monitor changes can move buttons without moving
+        // the taskbar. Read them from a timer, outside the system's broadcast.
+        if(s.compact) {
+            positionTaskbar(); layout.dirty=true;
+            if(!layout.pending) layout.pending=SetTimer(w,2,200,0)!=0;
+            return 0;
+        }
         RECT r; GetWindowRect(w,&r); MONITORINFO mi={}; mi.cbSize=sizeof(mi);
         if(GetMonitorInfoW(MonitorFromRect(&r,MONITOR_DEFAULTTONEAREST),&mi)) {
             int x=r.left,y=r.top;
