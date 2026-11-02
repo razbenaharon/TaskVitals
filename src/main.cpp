@@ -60,7 +60,7 @@ struct State {
 } s = {};
 struct Span { int left,right; };
 struct TaskbarLayout {
-    HWND bar; HWINEVENTHOOK hook; RECT bounds;
+    HWND bar; HWINEVENTHOOK hook; RECT bounds,physical;
     Span occupied[128]; int count; bool valid,dirty,pending; UINT retryMs;
 } layout = {};
 // A failed read is often brief (Explorer busy). Retry after 1, 2, 4... seconds,
@@ -102,12 +102,15 @@ void accessibleBounds(IAccessible* object,VARIANT child,int& budget,int depth) {
     if(control) {
         if(hidden) return;
         long x=0,y=0,w=0,h=0;
+        const RECT& p=layout.physical;
         if(SUCCEEDED(object->accLocation(&x,&y,&w,&h,child)) && w>0 && h>0 &&
-           y<layout.bounds.bottom && y+h>layout.bounds.top &&
-           x<layout.bounds.right && x+w>layout.bounds.left) {
+           y<p.bottom && y+h>p.top && x<p.right && x+w>p.left) {
             if(layout.count==128) { layout.valid=false; return; }
             int gap=MulDiv(6,s.dpi,96);
-            layout.occupied[layout.count++]={int(x)-gap,int(x+w)+gap};
+            int scaled=layout.bounds.right-layout.bounds.left,actual=p.right-p.left;
+            int from=layout.bounds.left+MulDiv(int(x)-p.left,scaled,actual);
+            int to=layout.bounds.left+MulDiv(int(x+w)-p.left,scaled,actual);
+            layout.occupied[layout.count++]={from-gap,to+gap};
             return; // A button's descendants cannot occupy more than the button.
         }
     }
@@ -165,12 +168,22 @@ void readTaskbarLayout(HWND bar,const RECT& bounds) {
     }
     if(!EqualRect(&layout.bounds,&bounds)) layout.dirty=true;
     if(!layout.dirty && layout.hook) return;
-    layout.bounds=bounds; layout.count=0; layout.valid=true; layout.dirty=false;
+    layout.bounds=bounds; layout.physical=bounds; layout.count=0; layout.valid=true; layout.dirty=false;
+    // This process keeps the display scale it started with. After the scale
+    // changes, window rectangles stay in that scale while the taskbar's XAML
+    // buttons report screen pixels, so no button would meet the bounds. Read
+    // in screen pixels and map the buttons back to this process's scale.
+    typedef HANDLE (WINAPI *ThreadDpi)(HANDLE);
+    ThreadDpi threadDpi=procAddress<ThreadDpi>(GetModuleHandleW(L"user32.dll"),"SetThreadDpiAwarenessContext");
+    HANDLE previous=threadDpi?threadDpi(reinterpret_cast<HANDLE>(-3)):0; // Per-monitor aware.
+    if(previous && (!GetWindowRect(bar,&layout.physical) || layout.physical.right<=layout.physical.left))
+        layout.valid=false;
     IAccessible* root=0;
-    if(SUCCEEDED(AccessibleObjectFromWindow(bar,OBJID_CLIENT,IID_IAccessible,reinterpret_cast<void**>(&root)))) {
+    if(layout.valid && SUCCEEDED(AccessibleObjectFromWindow(bar,OBJID_CLIENT,IID_IAccessible,reinterpret_cast<void**>(&root)))) {
         VARIANT self; VariantInit(&self); self.vt=VT_I4; self.lVal=CHILDID_SELF;
         int budget=768; accessibleBounds(root,self,budget,0); root->Release();
     } else layout.valid=false;
+    if(previous) threadDpi(previous);
     if(!layout.count) layout.valid=false;
     // Insertion sort is enough for this fixed, small collection; no heap container.
     for(int i=1;i<layout.count;i++) {

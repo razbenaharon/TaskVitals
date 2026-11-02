@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the taskbar strip floating above the taskbar after the display scale changed while TaskVitals was running (for example 100% to 125%). The taskbar's buttons were measured in screen pixels but compared with the taskbar in the scale TaskVitals started with, so none were found; the buttons are now mapped into the same scale.
+
 ## 1.9.1 — 2026-11-01
 
 - Fixed the widget staying hidden behind an ordinary maximized window. Windows can report a full-screen app while only an invisible full-screen overlay from another program is open; TaskVitals now hides only while the window in front actually covers its monitor.
