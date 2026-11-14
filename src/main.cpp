@@ -61,8 +61,12 @@ struct State {
 struct Span { int left,right; };
 struct TaskbarLayout {
     HWND bar; HWINEVENTHOOK hook; RECT bounds,physical;
-    Span occupied[128]; int count; bool valid,dirty,pending; UINT retryMs;
+    Span occupied[128]; int count; bool valid,dirty,pending,deferred; UINT retryMs; DWORD readAt,pendingSince;
 } layout = {};
+// Reading the taskbar's buttons costs a quarter to half a second, nearly all of
+// the start-up time. At start-up the strip is shown first at its wanted place
+// and the buttons are read this much later, away from the busy sign-in moment.
+const UINT kStartupReadDelayMs=10000;
 // A failed read is often brief (Explorer busy). Retry after 1, 2, 4... seconds,
 // at most once a minute, so a lasting failure costs little.
 UINT nextRetry(UINT milliseconds) { return !milliseconds?1000:milliseconds>=32000?60000:milliseconds*2; }
@@ -133,8 +137,11 @@ void accessibleBounds(IAccessible* object,VARIANT child,int& budget,int depth) {
     }
     if(obtained!=count) layout.valid=false;
 }
-void CALLBACK taskbarChanged(HWINEVENTHOOK,DWORD event,HWND window,LONG object,LONG child,DWORD,DWORD) {
+void CALLBACK taskbarChanged(HWINEVENTHOOK,DWORD event,HWND window,LONG object,LONG child,DWORD,DWORD time) {
     if(!s.compact || !window || GetAncestor(window,GA_ROOT)!=layout.bar) return;
+    // Events wait in the queue while a read runs. One raised before the last
+    // read began is already reflected in it and must not cause another read.
+    if(!layout.dirty && LONG(time-layout.readAt)<0) return;
     if(event==EVENT_OBJECT_STATECHANGE) {
         // Visibility state changes can remove the last app button without moving
         // its neighbours. Ignore ordinary focus/pressed/flashing state updates.
@@ -156,7 +163,10 @@ void CALLBACK taskbarChanged(HWINEVENTHOOK,DWORD event,HWND window,LONG object,L
        event!=EVENT_OBJECT_STATECHANGE) return;
     layout.dirty=true;
     // Coalesce Explorer's animation events; no periodic accessibility polling.
-    if(!layout.pending) layout.pending=SetTimer(s.window,2,200,0)!=0;
+    // Read 200 ms after the last event rather than the first, so one animated
+    // change costs one read, but never wait more than a second in a steady stream.
+    if(!layout.pending) { layout.pending=SetTimer(s.window,2,200,0)!=0; layout.pendingSince=GetTickCount(); }
+    else if(GetTickCount()-layout.pendingSince<1000) SetTimer(s.window,2,200,0);
 }
 // Returns whether the layout was read again; a cached layout returns false.
 bool readTaskbarLayout(HWND bar,const RECT& bounds) {
@@ -170,6 +180,7 @@ bool readTaskbarLayout(HWND bar,const RECT& bounds) {
     if(!EqualRect(&layout.bounds,&bounds)) layout.dirty=true;
     if(!layout.dirty && layout.hook) return false;
     layout.bounds=bounds; layout.physical=bounds; layout.count=0; layout.valid=true; layout.dirty=false;
+    layout.readAt=GetTickCount();
     // This process keeps the display scale it started with. After the scale
     // changes, window rectangles stay in that scale while the taskbar's XAML
     // buttons report screen pixels, so no button would meet the bounds. Read
@@ -420,10 +431,12 @@ void createTooltip() {
     SendMessageW(s.tooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,15000);
 }
 void positionTaskbar() {
-    if(!s.compact || s.dragging) return;
+    // While hidden behind a full-screen app nothing is shown, so nothing is read;
+    // the layout stays marked as changed and is read when the strip returns.
+    if(!s.compact || s.dragging || s.hidden) return;
     HWND bar=FindWindowW(L"Shell_TrayWnd",0); RECT r;
     if(!bar || !GetWindowRect(bar,&r)) return;
-    bool read=readTaskbarLayout(bar,r);
+    bool read=!layout.deferred && readTaskbarLayout(bar,r);
     int width=px(compactWidth()),height=px(32);
     int right=r.right-px(12);
     HWND tray=FindWindowExW(bar,0,L"TrayNotifyWnd",0);
@@ -435,7 +448,13 @@ void positionTaskbar() {
     else if(s.anchor==3) x=r.left+MulDiv(s.taskbarOffset,s.dpi,96);
     int desired=x;
     int y=r.top+(r.bottom-r.top-height)/2;
-    bool placed=layout.valid && freePosition(left,right,width,desired,layout.occupied,layout.count,x);
+    bool placed;
+    if(layout.deferred) {
+        // Not read yet: trust the wanted place, kept between the taskbar's ends.
+        if(x>right-width) x=right-width;
+        if(x<left) x=left;
+        placed=true;
+    } else placed=layout.valid && freePosition(left,right,width,desired,layout.occupied,layout.count,x);
     // Without a retry, the strip would float above the taskbar until the next
     // taskbar change. After a resume Explorer can report its buttons before it
     // has laid them out, so a read that finds no room is retried as well.
@@ -737,6 +756,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         else if(wp==2) { KillTimer(w,2); layout.pending=false; positionTaskbar(); }
         else if(wp==3) { KillTimer(w,3); layout.dirty=true; positionTaskbar(); }
         else if(wp==4) { KillTimer(w,4); keepAboveTaskbar(); }
+        else if(wp==5) { KillTimer(w,5); if(layout.deferred) { layout.deferred=false; layout.dirty=true; positionTaskbar(); } }
         return 0;
     case WM_LBUTTONDOWN:
         if(!s.compact || (GetKeyState(VK_CONTROL)&0x8000)) {
@@ -751,6 +771,8 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         menu(p); return 0;
     }
     case WM_COMMAND:
+        // A choice from the menu may need the buttons (Left, Center); read now.
+        if(layout.deferred) { KillTimer(w,5); layout.deferred=false; layout.dirty=true; }
         switch(LOWORD(wp)) {
         case Startup: toggleStartup(); break;
         case TaskbarMode: setMode(!s.compact); break;
@@ -841,7 +863,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         }
         if(s.foregroundHook) { UnhookWinEvent(s.foregroundHook); s.foregroundHook=0; }
         gpu.stop(); limit.stop(); network.stop();
-        KillTimer(w,1); KillTimer(w,2); KillTimer(w,3);
+        KillTimer(w,1); KillTimer(w,2); KillTimer(w,3); KillTimer(w,4); KillTimer(w,5);
         if(layout.hook) { UnhookWinEvent(layout.hook); layout.hook=0; }
         if(s.tooltip) { DestroyWindow(s.tooltip); s.tooltip=0; }
         save(); PostQuitMessage(0); return 0;
@@ -996,6 +1018,9 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
     if(!s.window) { CloseHandle(mutex); return 1; }
     createTooltip();
     registerShell();
+    // Right and Custom name a place that is normally free. Left and Center are
+    // defined by where the buttons are, so they read at once.
+    layout.deferred=(s.anchor==0 || s.anchor==3) && SetTimer(s.window,5,kStartupReadDelayMs,0)!=0;
     setMode(pref(L"Taskbar",1)!=0);
     if(s.gpuEnabled) gpu.start();
     if(s.limitEnabled) limit.start();

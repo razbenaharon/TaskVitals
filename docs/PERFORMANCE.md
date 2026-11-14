@@ -96,6 +96,7 @@ Working set includes shareable Windows code and is not the same as exclusive pri
 - One ordinary sampling timer, with a 5-second default and 1/2/5/10-second choices.
 - Repaint only when visible rounded percentages or validity change.
 - Update taskbar geometry only when it changes.
+- At start-up, show the strip first and read the taskbar's buttons 10 seconds later for the Right and Custom positions. The read is a quarter to half a second of cross-process accessibility calls (about 230 nodes), nearly all of the start-up work; Left and Center need the buttons and read at once.
 - Cache up to 128 occupied taskbar spans in a fixed array. Refresh native accessibility bounds on Explorer layout events, coalesced by a one-shot 200 ms timer; ignore ordinary focus, selection and visible pressed/flashing state changes. No periodic accessibility scan when the event hook is available and the layout is unchanged.
 - Release all accessibility object references after each layout scan. Native Windows COM/accessibility initialization adds some resident memory relative to the older core.
 - Reuse cached CPU/RAM samples for hover details.
