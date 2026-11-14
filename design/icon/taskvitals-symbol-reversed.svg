@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- One colour, no tile: band 14 high with radius 5; bars stop 3 above it so they stay apart. -->
+  <path d="M7 44H57A5 5 0 0 1 62 49V53A5 5 0 0 1 57 58H7A5 5 0 0 1 2 53V49A5 5 0 0 1 7 44Z" fill="#FFFFFF"/>
+  <path d="M17 41V12A4 4 0 0 1 21 8H25A4 4 0 0 1 29 12V41Z" fill="#FFFFFF"/>
+  <path d="M35 41V26A4 4 0 0 1 39 22H43A4 4 0 0 1 47 26V41Z" fill="#FFFFFF"/>
+</svg>

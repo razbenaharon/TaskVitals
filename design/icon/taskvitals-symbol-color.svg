@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Grid 64. Tile radius 14. Taskbar band from y=44. Bars 12 wide, gap 6, top radius 4,
+       both end at y=52, inside the band: the readings live on the taskbar. CPU 85%, RAM 50%. -->
+  <rect width="64" height="64" rx="14" fill="#16191F"/>
+  <path d="M0 44H64V50A14 14 0 0 1 50 64H14A14 14 0 0 1 0 50Z" fill="#2C323E"/>
+  <path d="M17 52V16A4 4 0 0 1 21 12H25A4 4 0 0 1 29 16V52Z" fill="#5BCEB6"/>
+  <path d="M35 52V30A4 4 0 0 1 39 26H43A4 4 0 0 1 47 30V52Z" fill="#BEB0FF"/>
+</svg>
