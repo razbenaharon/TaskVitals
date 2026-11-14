@@ -44,7 +44,7 @@ try {
     Assert ($handle -ne [IntPtr]::Zero) 'Widget did not open'
     Assert (([MeterTest]::GetWindowLong($handle,-20) -band 8) -eq 8) 'Window is not topmost'
     # Optional columns widen the strip; turn them off for the compact-size check.
-    foreach ($option in @(@('GpuEnabled',601),@('LimitEnabled',602),@('TemperatureEnabled',603))) {
+    foreach ($option in @(@('GpuEnabled',601),@('LimitEnabled',602),@('TemperatureEnabled',603),@('NetworkEnabled',604))) {
         if ((Get-ItemPropertyValue $prefs $option[0]) -eq 1) {
             [void][MeterTest]::SendMessage($handle,0x111,[IntPtr]$option[1],[IntPtr]::Zero)
         }

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the taskbar strip staying hidden behind the taskbar while still running. Explorer can bring the taskbar in front of it without notice; the strip now takes the front again on each sample and shortly after focus changes, but not while its menu is open.
+- Fixed another app's tray menu (for example the Claude desktop app's) dropping behind the taskbar, leaving items such as Exit unclickable. Taking the front again made Explorer raise the taskbar over the open menu; the strip now waits while any menu or small popup is open over the taskbar, including menus that Chromium and Electron apps draw themselves.
+- The smoke test now also turns off the network columns before checking the taskbar strip's width.
+- Fixed `--self-test` being ignored when the launcher pads the command line. Windows PowerShell 5.1's `Start-Process` can add a trailing space; TaskVitals then opened the widget instead, so the smoke test hung, or, with TaskVitals already running, the packaging script read the second instance's exit code 0 as a passed self-test.
+- The check for hidden (cloaked) windows now loads `dwmapi.dll` from the Windows system directory only, like the other on-demand libraries, instead of by name.
+- The GPU, thermal and network test scripts now require PowerShell 7. Under 64-bit Windows PowerShell 5.1 their library checks could not see a 32-bit process's modules, so they passed or failed regardless of the widget's behaviour.
+
 ## 1.9.2 — 2026-11-02
 
 - Fixed the taskbar strip floating above the taskbar after the display scale changed while TaskVitals was running (for example 100% to 125%). The taskbar's buttons were measured in screen pixels but compared with the taskbar in the scale TaskVitals started with, so none were found; the buttons are now mapped into the same scale.

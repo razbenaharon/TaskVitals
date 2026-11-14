@@ -1,3 +1,6 @@
+# The module checks below need PowerShell 7: 64-bit Windows PowerShell 5.1 cannot list a
+# 32-bit process's libraries, so 'not loaded' always passed and 'loaded' always failed.
+#requires -Version 7.0
 param([string]$Executable=(Join-Path $PSScriptRoot '..\release\TaskVitals.exe'))
 $ErrorActionPreference='Stop'
 $Executable=(Resolve-Path -LiteralPath $Executable).Path

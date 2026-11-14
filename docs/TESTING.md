@@ -1,5 +1,7 @@
 # Testing
 
+Run the test scripts with PowerShell 7 (`pwsh`). The GPU, thermal and network scripts require it: they check which libraries the 32-bit widget has loaded, which 64-bit Windows PowerShell 5.1 cannot see. Before this was enforced, those checks passed or failed there regardless of what the widget did.
+
 ## Sampling self-test
 
 ```powershell

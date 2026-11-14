@@ -49,7 +49,7 @@ struct State {
     HWND window, tooltip; HFONT regular, number, labelFont; int dpi;
     bool ready, haveCpu, haveMemory, compact, dragging, gpuEnabled, haveGpu;
     bool limitEnabled, haveLimit, temperatureEnabled, haveTemperature, networkEnabled, haveNetwork;
-    bool appBar, shellFullscreen, hidden; HWINEVENTHOOK foregroundHook; UINT taskbarCreated;
+    bool appBar, shellFullscreen, hidden, menuOpen; HWINEVENTHOOK foregroundHook; UINT taskbarCreated;
     double gpuUsage, limitPercent, temperature, download, upload;
     CpuTimes previous; double cpu; MEMORYSTATUSEX memory;
     int x, y;
@@ -467,10 +467,67 @@ bool coversMonitor(HWND window) {
         r.left<=info.rcMonitor.left && r.top<=info.rcMonitor.top &&
         r.right>=info.rcMonitor.right && r.bottom>=info.rcMonitor.bottom;
 }
-void updateFullscreen() {
+// The taskbar is topmost too, and Explorer can bring it in front of the strip
+// (after a click on it, for example) without telling the strip, which then stays
+// drawn but unseen. Taking the front again on each sample and focus change
+// undoes that.
+// Another process's open popup over the taskbar, such as a tray icon's menu.
+// Raising the strip then makes Explorer raise the taskbar in turn, over that
+// popup, and the menu items that overlap the taskbar can no longer be clicked.
+// Chromium and Electron draw menus as ordinary topmost popups rather than
+// "#32768" menus, so any small, visible topmost popup over the taskbar counts.
+struct PopupSearch { RECT bar; DWORD self; bool found; };
+BOOL CALLBACK findPopupOverTaskbar(HWND w,LPARAM lp) {
+    PopupSearch& search=*reinterpret_cast<PopupSearch*>(lp);
+    if(!IsWindowVisible(w)) return TRUE;
+    LONG style=GetWindowLongW(w,GWL_STYLE), exStyle=GetWindowLongW(w,GWL_EXSTYLE);
+    if(!(exStyle&WS_EX_TOPMOST) || !(style&WS_POPUP) || (exStyle&WS_EX_TRANSPARENT)) return TRUE;
+    DWORD pid=0; GetWindowThreadProcessId(w,&pid);
+    if(pid==search.self) return TRUE;
+    wchar_t name[32]; GetClassNameW(w,name,32);
+    if(!lstrcmpW(name,L"Shell_TrayWnd") || !lstrcmpW(name,L"Shell_SecondaryTrayWnd")) return TRUE;
+    typedef HRESULT (WINAPI *CloakedQuery)(HWND,DWORD,PVOID,DWORD);
+    // Load from the system directory only, as the other on-demand libraries
+    // are, so a file beside the executable is never loaded. Resolved once; this
+    // runs only on the UI thread, so plain statics avoid a thread-safe-static runtime.
+    static CloakedQuery cloakedQuery=0; static bool resolved=false;
+    if(!resolved) {
+        resolved=true;
+        wchar_t path[MAX_PATH]; UINT length=GetSystemDirectoryW(path,MAX_PATH);
+        if(length && length+12<MAX_PATH) {
+            lstrcatW(path,L"\\dwmapi.dll");
+            HMODULE library=LoadLibraryW(path);
+            if(library) cloakedQuery=procAddress<CloakedQuery>(library,"DwmGetWindowAttribute");
+        }
+    }
+    DWORD cloaked=0; // DWMWA_CLOAKED
+    if(cloakedQuery && SUCCEEDED(cloakedQuery(w,14,&cloaked,sizeof(cloaked))) && cloaked) return TRUE;
+    RECT r, overlap; MONITORINFO monitor={}; monitor.cbSize=sizeof(monitor);
+    if(!GetWindowRect(w,&r) || !IntersectRect(&overlap,&r,&search.bar) ||
+       !GetMonitorInfoW(MonitorFromWindow(w,MONITOR_DEFAULTTONEAREST),&monitor)) return TRUE;
+    // A window as wide or as tall as the monitor is an overlay, not a menu.
+    if(r.right-r.left>=monitor.rcMonitor.right-monitor.rcMonitor.left ||
+       r.bottom-r.top>=monitor.rcMonitor.bottom-monitor.rcMonitor.top) return TRUE;
+    search.found=true; return FALSE;
+}
+bool popupMenuOpen() {
+    for(HWND w=FindWindowExW(0,0,L"#32768",0); w; w=FindWindowExW(0,w,L"#32768",0))
+        if(IsWindowVisible(w)) return true;
+    HWND tray=FindWindowW(L"Shell_TrayWnd",0);
+    PopupSearch search={}; search.self=GetCurrentProcessId();
+    if(!tray || !GetWindowRect(tray,&search.bar)) return false;
+    EnumWindows(findPopupOverTaskbar,reinterpret_cast<LPARAM>(&search));
+    return search.found;
+}
+void keepAboveTaskbar() {
+    // An open menu is topmost too; the strip must not cover it.
+    if(s.compact && !s.hidden && !s.dragging && !s.menuOpen && !popupMenuOpen())
+        SetWindowPos(s.window,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+}
+void updateFullscreen(bool raise=true) {
     HWND front=GetForegroundWindow();
     bool hide=s.shellFullscreen && front && front!=s.window && coversMonitor(front);
-    if(hide==s.hidden) return;
+    if(hide==s.hidden) { if(raise) keepAboveTaskbar(); return; }
     s.hidden=hide;
     if(hide) {
         if(s.tooltip) SendMessageW(s.tooltip,TTM_POP,0,0);
@@ -480,8 +537,12 @@ void updateFullscreen() {
         SetWindowPos(s.window,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
     }
 }
-// Focus moving to another monitor need not change the shell's state.
-void CALLBACK foregroundChanged(HWINEVENTHOOK,DWORD,HWND,LONG,LONG,DWORD,DWORD) { updateFullscreen(); }
+// Focus moving to another monitor need not change the shell's state. Explorer
+// can raise the taskbar just after focus moves, so look again a moment later.
+// A tray icon's app takes the focus just before it opens its menu, so raising
+// right away would beat the menu to the screen and the check above would miss
+// it. Raise only from the delayed look.
+void CALLBACK foregroundChanged(HWINEVENTHOOK,DWORD,HWND,LONG,LONG,DWORD,DWORD) { updateFullscreen(false); SetTimer(s.window,4,300,0); }
 // Register for full-screen notifications only. Without ABM_SETPOS the
 // widget reserves no screen space.
 void registerShell() {
@@ -653,7 +714,9 @@ void menu(POINT point) {
     AppendMenuW(m,MF_SEPARATOR,0,0);
     AppendMenuW(m,MF_STRING,Quit,L"Exit");
     SetForegroundWindow(s.window);
+    s.menuOpen=true;
     UINT command=TrackPopupMenu(m,TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,0,s.window,0);
+    s.menuOpen=false;
     DestroyMenu(m); if(command) SendMessageW(s.window,WM_COMMAND,command,0);
 }
 LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
@@ -673,6 +736,7 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
         if(wp==1) { sample(); positionTaskbar(); updateFullscreen(); }
         else if(wp==2) { KillTimer(w,2); layout.pending=false; positionTaskbar(); }
         else if(wp==3) { KillTimer(w,3); layout.dirty=true; positionTaskbar(); }
+        else if(wp==4) { KillTimer(w,4); keepAboveTaskbar(); }
         return 0;
     case WM_LBUTTONDOWN:
         if(!s.compact || (GetKeyState(VK_CONTROL)&0x8000)) {
@@ -784,6 +848,16 @@ LRESULT CALLBACK windowProc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
     }
     return DefWindowProcW(w,message,wp,lp);
 }
+// Some launchers pad the command line: Windows PowerShell 5.1's Start-Process
+// can add a trailing space. An exact comparison then opened the widget instead,
+// and a second instance exits with 0, which read as a passed self-test.
+bool selfTestRequested(const char* arguments) {
+    const char flag[]="--self-test"; size_t length=sizeof(flag)-1;
+    while(*arguments==' ' || *arguments=='\t') ++arguments;
+    if(strncmp(arguments,flag,length)!=0) return false;
+    for(arguments+=length;*arguments;++arguments) if(*arguments!=' ' && *arguments!='\t') return false;
+    return true;
+}
 int selfTest() {
     GpuPdhItem counters[]={
         {const_cast<wchar_t*>(L"pid_1_luid_0x0_0x1_phys_0_eng_0_engtype_3D"),{0,{20.0}}},
@@ -875,11 +949,13 @@ int selfTest() {
     if(!cpuUsage({0,0,0},{0,50,50},value) || value!=100) return 6;
     CpuTimes live; MEMORYSTATUSEX memory={}; memory.dwLength=sizeof(memory);
     if(!readCpu(live) || !GlobalMemoryStatusEx(&memory) || memory.dwMemoryLoad>100) return 7;
+    if(!selfTestRequested("--self-test") || !selfTestRequested(" --self-test \t") ||
+       selfTestRequested("") || selfTestRequested("--self-tests") || selfTestRequested("--self-test x")) return 50;
     return 0;
 }
 }
 int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR arguments,int) {
-    if(strcmp(arguments,"--self-test")==0) return selfTest();
+    if(selfTestRequested(arguments)) return selfTest();
     HRESULT com=CoInitializeEx(0,COINIT_APARTMENTTHREADED);
     // The widget has no free-text input; the optional RGB dialog uses numbers.
     // Opt out before creating windows, retaining ordinary key/menu input.
