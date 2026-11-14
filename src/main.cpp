@@ -61,7 +61,7 @@ struct State {
 struct Span { int left,right; };
 struct TaskbarLayout {
     HWND bar; HWINEVENTHOOK hook; RECT bounds,physical;
-    Span occupied[128]; int count; bool valid,dirty,pending,deferred; UINT retryMs; DWORD readAt,pendingSince;
+    Span occupied[128]; int count; bool valid,dirty,pending,deferred,xaml,stale; UINT retryMs; DWORD readAt,pendingSince,staleSince; int skipped;
 } layout = {};
 // Reading the taskbar's buttons costs a quarter to half a second, nearly all of
 // the start-up time. At start-up the strip is shown first at its wanted place
@@ -87,6 +87,55 @@ bool freePosition(int left,int right,int width,int desired,const Span* spans,int
         if(i<count && spans[i].right>left) left=spans[i].right;
     }
     return found;
+}
+
+// A change that cannot put a button under the strip need not be read. A read is
+// a quarter to half a second, and most changes (a window opening or closing far
+// from the strip) leave the strip exactly where it wants to be.
+// True when [from,to) stays at least `clearance` away from the strip.
+bool clearOfStrip(int from,int to,int stripLeft,int stripRight,int clearance) {
+    return to+clearance<=stripLeft || from-clearance>=stripRight;
+}
+const int kMaxSkippedChanges=32;
+// A skipped change is still checked by one full read within about this long,
+// at a quiet moment. Buttons that move without reporting it (icons growing back
+// after the taskbar was full, a labelled button inserted mid-list, the search
+// box switched on) are then found, so a wrong guess cannot last.
+const DWORD kMaxStaleMs=60000;
+// Only trusted on the Windows 11 taskbar, with the strip at the Right position,
+// where its neighbour is the notification area, whose edge positionTaskbar
+// follows by itself:
+// - Something leaving or hiding cannot cover the strip.
+// - The old MSTaskListWClass/MSTaskSwWClass/ReBarWindow32 windows only mirror the
+//   number of app buttons there; the real buttons report through the XAML host.
+// - Anything else (a new or moved button) reports where it is. It is harmless
+//   when it is more than a button's width away, which also covers a centered
+//   taskbar shifting the new last button by half a button.
+// Anything not understood is read as before, and so is every change once the
+// strip is not exactly where it wants to be.
+bool changeIsHarmless(DWORD event,HWND window,LONG object,LONG child) {
+    if(event==EVENT_OBJECT_HIDE || event==EVENT_OBJECT_DESTROY || event==EVENT_OBJECT_STATECHANGE) return true;
+    wchar_t name[32]=L""; GetClassNameW(window,name,32);
+    if(!lstrcmpW(name,L"MSTaskListWClass") || !lstrcmpW(name,L"MSTaskSwWClass") || !lstrcmpW(name,L"ReBarWindow32")) return true;
+    IAccessible* accessible=0; VARIANT item; VariantInit(&item); bool clear=false;
+    if(SUCCEEDED(AccessibleObjectFromEvent(window,object,child,&accessible,&item)) && accessible) {
+        long x=0,y=0,w=0,h=0; RECT strip; const RECT& p=layout.physical;
+        int scaled=layout.bounds.right-layout.bounds.left,actual=p.right-p.left;
+        // Ask in screen pixels, as the full read does, so both map the same way.
+        typedef HANDLE (WINAPI *ThreadDpi)(HANDLE);
+        ThreadDpi threadDpi=procAddress<ThreadDpi>(GetModuleHandleW(L"user32.dll"),"SetThreadDpiAwarenessContext");
+        HANDLE previous=threadDpi?threadDpi(reinterpret_cast<HANDLE>(-3)):0;
+        HRESULT located=accessible->accLocation(&x,&y,&w,&h,item);
+        if(previous) threadDpi(previous);
+        if(SUCCEEDED(located) && w>0 && h>0 && actual>0 && GetWindowRect(s.window,&strip)) {
+            int from=layout.bounds.left+MulDiv(int(x)-p.left,scaled,actual);
+            int to=layout.bounds.left+MulDiv(int(x+w)-p.left,scaled,actual);
+            clear=clearOfStrip(from,to,strip.left,strip.right,MulDiv(6+48,s.dpi,96));
+        }
+        accessible->Release();
+    }
+    VariantClear(&item);
+    return clear;
 }
 
 void accessibleBounds(IAccessible* object,VARIANT child,int& budget,int depth) {
@@ -161,7 +210,16 @@ void CALLBACK taskbarChanged(HWINEVENTHOOK,DWORD event,HWND window,LONG object,L
        event!=EVENT_OBJECT_SHOW && event!=EVENT_OBJECT_HIDE &&
        event!=EVENT_OBJECT_REORDER && event!=EVENT_OBJECT_LOCATIONCHANGE &&
        event!=EVENT_OBJECT_STATECHANGE) return;
-    layout.dirty=true;
+    // A harmless change leaves the cached layout out of date but is not read;
+    // positionTaskbar reads it when the strip has to move. After many of them,
+    // read once anyway in case one was misjudged.
+    if(layout.xaml && s.anchor==0 && layout.valid && !layout.dirty && layout.skipped<kMaxSkippedChanges &&
+       changeIsHarmless(event,window,object,child)) {
+        // One change raises several events; count it once, when its wait begins.
+        if(!layout.stale) layout.staleSince=GetTickCount();
+        layout.stale=true; if(!layout.pending) ++layout.skipped;
+    }
+    else layout.dirty=true;
     // Coalesce Explorer's animation events; no periodic accessibility polling.
     // Read 200 ms after the last event rather than the first, so one animated
     // change costs one read, but never wait more than a second in a steady stream.
@@ -180,7 +238,8 @@ bool readTaskbarLayout(HWND bar,const RECT& bounds) {
     if(!EqualRect(&layout.bounds,&bounds)) layout.dirty=true;
     if(!layout.dirty && layout.hook) return false;
     layout.bounds=bounds; layout.physical=bounds; layout.count=0; layout.valid=true; layout.dirty=false;
-    layout.readAt=GetTickCount();
+    layout.readAt=GetTickCount(); layout.stale=false; layout.skipped=0;
+    layout.xaml=FindWindowExW(bar,0,L"Windows.UI.Composition.DesktopWindowContentBridge",0)!=0;
     // This process keeps the display scale it started with. After the scale
     // changes, window rectangles stay in that scale while the taskbar's XAML
     // buttons report screen pixels, so no button would meet the bounds. Read
@@ -436,7 +495,6 @@ void positionTaskbar() {
     if(!s.compact || s.dragging || s.hidden) return;
     HWND bar=FindWindowW(L"Shell_TrayWnd",0); RECT r;
     if(!bar || !GetWindowRect(bar,&r)) return;
-    bool read=!layout.deferred && readTaskbarLayout(bar,r);
     int width=px(compactWidth()),height=px(32);
     int right=r.right-px(12);
     HWND tray=FindWindowExW(bar,0,L"TrayNotifyWnd",0);
@@ -448,6 +506,16 @@ void positionTaskbar() {
     else if(s.anchor==3) x=r.left+MulDiv(s.taskbarOffset,s.dpi,96);
     int desired=x;
     int y=r.top+(r.bottom-r.top-height)/2;
+    // Unread harmless changes are fine only for a while, at the Right position,
+    // and while the strip sits exactly where it wants to be. If it must move or
+    // resize, or was dragged elsewhere, learn the real layout first.
+    if(layout.stale && !layout.dirty) {
+        RECT now;
+        if(s.anchor!=0 || GetTickCount()-layout.staleSince>=kMaxStaleMs ||
+           !GetWindowRect(s.window,&now) || now.left!=desired || now.top!=y ||
+           now.right-now.left!=width || now.bottom-now.top!=height) layout.dirty=true;
+    }
+    bool read=!layout.deferred && readTaskbarLayout(bar,r);
     bool placed;
     if(layout.deferred) {
         // Not read yet: trust the wanted place, kept between the taskbar's ends.
@@ -960,6 +1028,10 @@ int selfTest() {
     }
     Span narrow[]={{0,1200},{1450,1920}};
     if(!freePosition(12,1908,196,12,narrow,2,x) || freePosition(12,1908,294,12,narrow,2,x)) return 17;
+    // A button next to the strip, within the clearance, or overlapping it is not clear.
+    if(!clearOfStrip(100,144,300,500,54) || clearOfStrip(210,254,300,500,54) || !clearOfStrip(246,300,300,500,0) ||
+       clearOfStrip(480,520,300,500,54) || clearOfStrip(540,584,300,500,54) || !clearOfStrip(554,598,300,500,54) ||
+       clearOfStrip(0,1920,300,500,54)) return 19;
     if(nextRetry(0)!=1000 || nextRetry(1000)!=2000 || nextRetry(16000)!=32000 ||
        nextRetry(32000)!=60000 || nextRetry(60000)!=60000) return 18;
     double value=0; CpuTimes a={100,200,100}, b={150,300,200};

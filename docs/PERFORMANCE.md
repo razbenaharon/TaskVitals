@@ -4,6 +4,40 @@ Reference measurements were collected on Windows 11 Pro 10.0.26300 x64 on 2026-1
 
 The one-minute table below describes version 1.4.1, before the color options added in 1.5.0. The color feature adds stored RGB values and user-triggered repainting, without changing the sampling timer. The Windows color-picker library is loaded on request and its reference is released after closing; it is not a startup import.
 
+## What the tables below leave out: taskbar changes and start-up
+
+Measured on 2026-11-14 on the same machine with the x86 MinGW.org GCC 6.3.0 build, Normal size, 5-second refresh. The tables in the later sections were taken on a quiet desktop. They do not include the cost of reading the taskbar's buttons again, which is the largest cost in ordinary use.
+
+**Each taskbar change costs one read.** Opening or closing a window, or a notification-area icon appearing or leaving, makes TaskVitals read every taskbar button again so that it does not cover one.
+
+| Metric | Observed |
+| --- | ---: |
+| Accessibility nodes visited per read | about 230, of which about 35 are real buttons |
+| Time per read, quiet machine | 245–465 ms |
+| Time per read, busy machine | up to about 650 ms |
+| CPU time per read | 100–330 ms, typically about 235 ms |
+| Reads for 16 window openings and closings | 12–13 |
+| CPU time, 3 quiet minutes, network columns on | 703 ms (0.39% of one logical processor) |
+
+The strip does not repaint or answer input during a read. Nearly all of the time goes to the real buttons, which the taskbar serves across processes at several milliseconds each; skipping the unseen window furniture cut the nodes visited to 94 without shortening the read, so that change was not kept. Waiting for 200 ms without events before reading did not lower the number of reads either, because each window change is a separate change. The work Explorer does to answer these calls is not included in any figure here and was not measured.
+
+A process that had run for 32 minutes during heavy testing, with many windows and processes started and stopped, had used about 27 seconds of CPU time. That is an upper example, not a typical day: at about a quarter of a second per change, 200 window changes in a day cost about 50 seconds.
+
+**After the change that skips harmless changes** (Right position, Windows 11 taskbar), the same 16 window openings and closings cost 1 read instead of 12, and 328–516 ms of CPU time instead of 1,531–2,578 ms. The one read is a check about a minute after the first skipped change. A change is skipped only when it cannot put a button under the strip: something leaving, or a new or moved button that reports a place more than a button's width away, while the strip is exactly where it wants to be. With changes several minutes apart, each still costs one read, a minute later. The other positions and Windows 10 are unchanged. A centered taskbar, new notification-area icons and a second display were not tested.
+
+**Start-up.** CPU time shortly after launch, three runs each:
+
+| Configuration | Strip visible after | CPU time |
+| --- | ---: | ---: |
+| Desktop view (no taskbar read) | 29–42 ms | 16–31 ms in the first 8 s |
+| Taskbar view, read at start (1.9.2) | 307–481 ms | 140–330 ms in the first 8 s |
+| Taskbar view, read 10 s after start (Right or Custom) | 38–44 ms after the first launch | 16–62 ms in the first 6 s, 141–219 ms by 15 s |
+| Taskbar view with GPU, speed limit and network columns (1.9.2) | 291–384 ms | 1,450–2,170 ms in the first 8 s |
+
+Starting the Windows performance-counter library (PDH) for the GPU column or the speed-limit column takes 0.86–1.4 seconds of CPU time each, on the UI thread, before the first sample. The later sections report only the steady cost of those columns. Whether the delayed read changes the start-up impact that Task Manager reports has not been checked; the read still happens, 10 seconds later.
+
+These are short observations on one machine with ordinary background activity, and the timings varied between rounds by a factor of two or more. The read counts are reliable; the exact times are not.
+
 ## Version 1.9.0 network traffic
 
 Sequential 30-second observations on the same machine on 2026-10-25, Normal size, Right position, 5-second refresh, with GPU, speed limit and temperature off.
@@ -70,7 +104,7 @@ The GPU calculation groups per-process counters by adapter LUID, physical adapte
 
 A 34.67-second observation at Normal size, Right and five-second refresh recorded **12.10–12.16 MiB working set**, **2.36–2.50 MiB private memory**, and **0.1352% of one logical processor** (**0.0113% across this machine**). GDI stayed at 14, USER resources at 7, and handles changed from 171 to 170. [Raw report](measurements/placement-1.6.0.json).
 
-This short observation includes native COM/accessibility initialization used for avoiding shell controls. It is a few MiB larger than the older 1.4.1 core. Layout bounds are cached between meaningful Explorer events; the ordinary CPU/RAM sampling cadence is unchanged. This is an uncontrolled desktop observation, not a fixed resource limit or a long-term leak test. It excludes work performed in Explorer and DWM.
+This short observation includes native COM/accessibility initialization used for avoiding shell controls, but few taskbar changes; see the first section for the cost of each one. It is a few MiB larger than the older 1.4.1 core. Layout bounds are cached between meaningful Explorer events; the ordinary CPU/RAM sampling cadence is unchanged. This is an uncontrolled desktop observation, not a fixed resource limit or a long-term leak test. It excludes work performed in Explorer and DWM.
 
 ## Observed memory reduction
 
@@ -95,7 +129,7 @@ Working set includes shareable Windows code and is not the same as exclusive pri
 
 - One ordinary sampling timer, with a 5-second default and 1/2/5/10-second choices.
 - Repaint only when visible rounded percentages or validity change.
-- Update taskbar geometry only when it changes.
+- Update taskbar geometry only when it changes. At the Right position on the Windows 11 taskbar, a change that cannot reach the strip is not read at once; one full read follows within about a minute.
 - At start-up, show the strip first and read the taskbar's buttons 10 seconds later for the Right and Custom positions. The read is a quarter to half a second of cross-process accessibility calls (about 230 nodes), nearly all of the start-up work; Left and Center need the buttons and read at once.
 - Cache up to 128 occupied taskbar spans in a fixed array. Refresh native accessibility bounds on Explorer layout events, coalesced by a one-shot 200 ms timer; ignore ordinary focus, selection and visible pressed/flashing state changes. No periodic accessibility scan when the event hook is available and the layout is unchanged.
 - Release all accessibility object references after each layout scan. Native Windows COM/accessibility initialization adds some resident memory relative to the older core.
